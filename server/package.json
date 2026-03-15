@@ -1,0 +1,17 @@
+{
+  "name": "seygo-server",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx server/index.ts"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "@supabase/supabase-js": "^2"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "tsx": "^4"
+  }
+}
