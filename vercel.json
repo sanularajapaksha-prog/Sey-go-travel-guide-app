@@ -1,8 +1,5 @@
 {
-  "version": 2,  // Add this explicitly if it's missing — helps avoid legacy mode
-  "functions": {
-    "server/index.ts": { }
-  },
+  "version": 2,
   "routes": [
     {
       "src": "/(.*)",
