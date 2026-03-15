@@ -37,7 +37,7 @@ async function buildAll() {
 
   console.log("building client...");
   await viteBuild({
-    configFile: "client/vite.config.ts",
+    configFile: "vite.config.ts",
   });
 
   console.log("building server...");

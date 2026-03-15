@@ -2,9 +2,9 @@
   "name": "seygo-server",
   "private": true,
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx server/index.ts"
+    "build": "echo build",
+    "start": "npx tsx index.ts",
+    "dev": "npx tsx index.ts"
   },
   "dependencies": {
     "express": "^4.19.2",
