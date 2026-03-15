@@ -31,6 +31,7 @@ export const api = {
           totalTrips: z.number(),
           totalPlaylists: z.number(),
           totalPlaces: z.number(),
+          totalUsers: z.number(),
           activeUsers: z.number(),
           pendingReviews: z.number(),
         }),
@@ -44,6 +45,7 @@ export const api = {
           date: z.string(),
           trips: z.number(),
           playlists: z.number(),
+          users: z.number(),
         })),
       },
     }

@@ -146,7 +146,7 @@ export async function registerRoutes(
     res.json(places);
   });
   app.get(api.places.get.path, async (req, res) => {
-    const place = await storage.getPlace(Number(req.params.id));
+    const place = await storage.getPlace(req.params.id);
     if (!place) return res.status(404).json({ message: "Place not found" });
     res.json(place);
   });
@@ -172,12 +172,12 @@ export async function registerRoutes(
     }
   });
   app.put(api.places.update.path, async (req, res) => {
-    const updated = await storage.updatePlace(Number(req.params.id), req.body);
+    const updated = await storage.updatePlace(req.params.id, req.body);
     if (!updated) return res.status(404).json({ message: "Place not found" });
     res.json(updated);
   });
   app.delete(api.places.delete.path, async (req, res) => {
-    await storage.deletePlace(Number(req.params.id));
+    await storage.deletePlace(req.params.id);
     res.status(204).end();
   });
 

@@ -1,7 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { useDashboardStats, useDashboardActivity } from "@/hooks/use-dashboard";
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, ListMusic, Users, Shield, TrendingUp } from "lucide-react";
@@ -63,8 +63,8 @@ export default function Dashboard() {
           colorClass="bg-emerald-500 shadow-emerald-500/30 shadow-lg" 
         />
         <StatCard 
-          title="Active Users" 
-          value={stats?.activeUsers || 0} 
+          title="User Count" 
+          value={stats?.totalUsers || 0} 
           icon={Users} 
           colorClass="bg-orange-500 shadow-orange-500/30 shadow-lg" 
         />
@@ -75,6 +75,9 @@ export default function Dashboard() {
         <Card className="col-span-2 border-none shadow-xl shadow-black/5">
           <CardHeader>
             <CardTitle>Platform Activity</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Live monthly activity and user growth from the Supabase database.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="h-[350px] w-full">
@@ -89,10 +92,15 @@ export default function Dashboard() {
                       <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                     </linearGradient>
+                    <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.22}/>
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <Legend />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
@@ -111,6 +119,15 @@ export default function Dashboard() {
                     strokeWidth={3}
                     fillOpacity={1} 
                     fill="url(#colorPlaylists)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="users" 
+                    name="User growth"
+                    stroke="#f97316" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorUsers)" 
                   />
                 </AreaChart>
               </ResponsiveContainer>

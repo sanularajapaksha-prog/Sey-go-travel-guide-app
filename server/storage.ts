@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { db } from './db'
+import { db, pool } from './db'
 import { eq, desc } from 'drizzle-orm'
 import {
   users, places, playlists, trips, reviews, photos,
@@ -12,6 +12,57 @@ import {
   type StatsResponse
 } from "@shared/schema";
 
+const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "places";
+const placePhotosBucket = process.env.SUPABASE_PLACE_PHOTOS_BUCKET ?? "place-photos";
+const placePhotosArePrivate = process.env.SUPABASE_PLACE_PHOTOS_PRIVATE === "true";
+
+type ExternalPlaceRow = {
+  place_id: string;
+  name: string;
+  primary_category: string | null;
+  categories: unknown;
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
+  avg_rating: string | number | null;
+  photo_storage_paths: string[] | null;
+  status: string | null;
+  created_at: string | Date | null;
+};
+
+function toPlaceId(id: string | number): string {
+  return String(id);
+}
+
+function buildPlaceImageUrl(photoPaths: string[] | null): string | null {
+  const firstPath = photoPaths?.[0];
+  if (!firstPath) return null;
+  if (placePhotosArePrivate) return null;
+  const { data } = supabase.storage.from(placePhotosBucket).getPublicUrl(firstPath);
+  return data.publicUrl || null;
+}
+
+function mapExternalPlace(row: ExternalPlaceRow): Place {
+  return {
+    id: row.place_id as unknown as number,
+    name: row.name,
+    description: null,
+    location: row.address,
+    category: row.primary_category,
+    imageUrl: buildPlaceImageUrl(row.photo_storage_paths),
+    rating: row.avg_rating == null ? "0" : String(row.avg_rating),
+    status: row.status ?? "active",
+    coordinates:
+      row.lat != null && row.lng != null
+        ? JSON.stringify({ lat: row.lat, lng: row.lng })
+        : null,
+    amenities: Array.isArray(row.categories) ? JSON.stringify(row.categories) : null,
+    difficulty: null,
+    bestTime: null,
+    entryFee: null,
+    createdAt: row.created_at ? new Date(row.created_at) : null,
+  };
+}
 
 export interface IStorage {
   // Users
@@ -23,10 +74,10 @@ export interface IStorage {
 
   // Places
   getPlaces(): Promise<Place[]>;
-  getPlace(id: number): Promise<Place | undefined>;
+  getPlace(id: string | number): Promise<Place | undefined>;
   createPlace(place: InsertPlace): Promise<Place>;
-  updatePlace(id: number, place: Partial<InsertPlace>): Promise<Place>;
-  deletePlace(id: number): Promise<void>;
+  updatePlace(id: string | number, place: Partial<InsertPlace>): Promise<Place>;
+  deletePlace(id: string | number): Promise<void>;
 
   // Playlists
   getPlaylists(): Promise<Playlist[]>;
@@ -49,7 +100,7 @@ export interface IStorage {
 
   // Dashboard Stats
   getDashboardStats(): Promise<StatsResponse>;
-  getActivityStats(): Promise<{ date: string; trips: number; playlists: number }[]>;
+  getActivityStats(): Promise<{ date: string; trips: number; playlists: number; users: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -75,22 +126,93 @@ export class DatabaseStorage implements IStorage {
 
   // Places
   async getPlaces(): Promise<Place[]> {
-    return await db.select().from(places).orderBy(desc(places.createdAt));
+    const result = await pool.query(
+      `select place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at
+       from public.${placesTableName}
+       order by created_at desc nulls last, place_id asc`,
+    );
+    return result.rows.map((row) => mapExternalPlace(row as ExternalPlaceRow));
   }
-  async getPlace(id: number): Promise<Place | undefined> {
-    const [place] = await db.select().from(places).where(eq(places.id, id));
-    return place;
+  async getPlace(id: string | number): Promise<Place | undefined> {
+    const result = await pool.query(
+      `select place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at
+       from public.${placesTableName}
+       where place_id = $1
+       limit 1`,
+      [toPlaceId(id)],
+    );
+    const row = result.rows[0] as ExternalPlaceRow | undefined;
+    return row ? mapExternalPlace(row) : undefined;
   }
   async createPlace(place: InsertPlace): Promise<Place> {
-    const [newPlace] = await db.insert(places).values(place).returning();
-    return newPlace;
+    const placeId = `PLC${Date.now()}`;
+    const coordinates = place.coordinates ? JSON.parse(place.coordinates) : null;
+    const categories = place.amenities ? JSON.parse(place.amenities) : [];
+    const result = await pool.query(
+      `insert into public.${placesTableName}
+       (place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status)
+       values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::jsonb, $10)
+       returning place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at`,
+      [
+        placeId,
+        place.name,
+        place.category ?? null,
+        JSON.stringify(categories),
+        coordinates?.lat ?? null,
+        coordinates?.lng ?? null,
+        place.location ?? null,
+        place.rating ?? "0",
+        JSON.stringify([]),
+        place.status ?? "active",
+      ],
+    );
+    return mapExternalPlace(result.rows[0] as ExternalPlaceRow);
   }
-  async updatePlace(id: number, updates: Partial<InsertPlace>): Promise<Place> {
-    const [updated] = await db.update(places).set(updates).where(eq(places.id, id)).returning();
-    return updated;
+  async updatePlace(id: string | number, updates: Partial<InsertPlace>): Promise<Place> {
+    const existing = await this.getPlace(id);
+    if (!existing) {
+      throw new Error("Place not found");
+    }
+
+    const coordinates = updates.coordinates
+      ? JSON.parse(updates.coordinates)
+      : existing.coordinates
+        ? JSON.parse(existing.coordinates)
+        : null;
+    const categories = updates.amenities
+      ? JSON.parse(updates.amenities)
+      : existing.amenities
+        ? JSON.parse(existing.amenities)
+        : [];
+
+    const result = await pool.query(
+      `update public.${placesTableName}
+       set name = $2,
+           primary_category = $3,
+           categories = $4::jsonb,
+           lat = $5,
+           lng = $6,
+           address = $7,
+           avg_rating = $8,
+           status = $9
+       where place_id = $1
+       returning place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at`,
+      [
+        toPlaceId(id),
+        updates.name ?? existing.name,
+        updates.category ?? existing.category,
+        JSON.stringify(categories),
+        coordinates?.lat ?? null,
+        coordinates?.lng ?? null,
+        updates.location ?? existing.location,
+        updates.rating ?? existing.rating,
+        updates.status ?? existing.status,
+      ],
+    );
+    return mapExternalPlace(result.rows[0] as ExternalPlaceRow);
   }
-  async deletePlace(id: number): Promise<void> {
-    await db.delete(places).where(eq(places.id, id));
+  async deletePlace(id: string | number): Promise<void> {
+    await pool.query(`delete from public.${placesTableName} where place_id = $1`, [toPlaceId(id)]);
   }
 
   // Playlists
@@ -154,19 +276,52 @@ export class DatabaseStorage implements IStorage {
       totalTrips: allTrips.length,
       totalPlaylists: allPlaylists.length,
       totalPlaces: allPlaces.length,
+      totalUsers: allUsers.length,
       activeUsers: allUsers.filter(u => u.status === 'active').length,
       pendingReviews: allReviews.filter(r => r.status === 'pending').length,
     };
   }
 
-  async getActivityStats(): Promise<{ date: string; trips: number; playlists: number }[]> {
-    // Mock activity data
-    const dates = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06'];
-    return dates.map(date => ({
-      date,
-      trips: Math.floor(Math.random() * 50) + 10,
-      playlists: Math.floor(Math.random() * 20) + 5,
-    }));
+  async getActivityStats(): Promise<{ date: string; trips: number; playlists: number; users: number }[]> {
+    const [allTrips, allPlaylists, allUsers] = await Promise.all([
+      this.getTrips(),
+      this.getPlaylists(),
+      this.getUsers(),
+    ]);
+
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      return { date, key };
+    });
+
+    const countByMonth = (items: Array<{ createdAt?: Date | null; joinedAt?: Date | null }>, field: "createdAt" | "joinedAt") => {
+      const counts = new Map<string, number>();
+      for (const item of items) {
+        const value = item[field];
+        if (!value) continue;
+        const date = new Date(value);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      return counts;
+    };
+
+    const tripCounts = countByMonth(allTrips, "createdAt");
+    const playlistCounts = countByMonth(allPlaylists, "createdAt");
+    const userCounts = countByMonth(allUsers, "joinedAt");
+
+    let cumulativeUsers = 0;
+    return months.map(({ key }) => {
+      cumulativeUsers += userCounts.get(key) ?? 0;
+      return {
+        date: key,
+        trips: tripCounts.get(key) ?? 0,
+        playlists: playlistCounts.get(key) ?? 0,
+        users: cumulativeUsers,
+      };
+    });
   }
 }
 

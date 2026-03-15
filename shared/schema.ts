@@ -3,6 +3,10 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // === TABLE DEFINITIONS ===
+const placesTableName =
+  typeof process !== "undefined" && process.env?.SUPABASE_PLACES_TABLE
+    ? process.env.SUPABASE_PLACES_TABLE
+    : "places";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -13,7 +17,7 @@ export const users = pgTable("users", {
   joinedAt: timestamp("joined_at").defaultNow(),
 });
 
-export const places = pgTable("places", {
+export const places = pgTable(placesTableName, {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -151,6 +155,7 @@ export type StatsResponse = {
   totalTrips: number;
   totalPlaylists: number;
   totalPlaces: number;
+  totalUsers: number;
   activeUsers: number;
   pendingReviews: number;
 };

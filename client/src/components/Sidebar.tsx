@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, MapPin, ListMusic, Users, Shield, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -11,7 +12,8 @@ const navigation = [
 ];
 
 export function Sidebar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { logout } = useAuth();
 
   return (
     <div className="flex flex-col w-64 bg-white border-r border-border h-screen sticky top-0">
@@ -49,7 +51,13 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border/50">
-        <button className="flex items-center w-full px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-xl transition-colors">
+        <button
+          className="flex items-center w-full px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+          onClick={async () => {
+            await logout();
+            navigate("/login");
+          }}
+        >
           <LogOut className="mr-3 h-5 w-5" />
           Sign Out
         </button>

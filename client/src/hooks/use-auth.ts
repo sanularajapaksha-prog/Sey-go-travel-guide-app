@@ -1,47 +1,135 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { User } from "@shared/models/auth";
+import {
+  createElement,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { hasSupabaseClientConfig, supabase } from "@/lib/supabase";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-async function fetchUser(): Promise<User | null> {
-  const response = await fetch("/api/auth/user", {
-    credentials: "include",
-  });
+type AuthUser = {
+  email: string;
+  name: string;
+};
 
-  if (response.status === 401) {
-    return null;
-  }
+type LoginInput = {
+  email: string;
+  password: string;
+};
 
-  if (!response.ok) {
-    throw new Error(`${response.status}: ${response.statusText}`);
-  }
+type AuthContextValue = {
+  user: AuthUser | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (input: LoginInput) => Promise<void>;
+  logout: () => Promise<void>;
+};
 
-  return response.json();
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function toAuthUser(user: SupabaseUser | null): AuthUser | null {
+  if (!user?.email) return null;
+
+  const fullName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : null;
+
+  return {
+    email: user.email,
+    name: fullName || user.email.split("@")[0] || "Admin User",
+  };
 }
 
-async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabase) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        setUser(null);
+      } else {
+        setUser(toAuthUser(data.session?.user ?? null));
+      }
+      setIsLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(toAuthUser(session?.user ?? null));
+      setIsLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: !!user,
+      login: async ({ email, password }) => {
+        if (!supabase || !hasSupabaseClientConfig) {
+          throw new Error(
+            "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env for Supabase Auth.",
+          );
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        setUser(toAuthUser(data.user));
+      },
+      logout: async () => {
+        if (!supabase) {
+          setUser(null);
+          return;
+        }
+
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          throw new Error(error.message);
+        }
+        setUser(null);
+      },
+    }),
+    [isLoading, user],
+  );
+
+  return createElement(AuthContext.Provider, { value }, children);
 }
 
 export function useAuth() {
-  const queryClient = useQueryClient();
-  const { data: user, isLoading } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
-    queryFn: fetchUser,
-    retry: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+  const context = useContext(AuthContext);
 
-  const logoutMutation = useMutation({
-    mutationFn: logout,
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
-    },
-  });
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
 
-  return {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    logout: logoutMutation.mutate,
-    isLoggingOut: logoutMutation.isPending,
-  };
+  return context;
 }
