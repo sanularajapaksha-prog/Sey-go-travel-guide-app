@@ -1,11 +1,10 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "npm run build",
-  "functions": {
-    "server/index.ts": {
-      "runtime": "nodejs20.x"
+  "builds": [
+    {
+      "src": "server/index.ts",
+      "use": "@vercel/node"
     }
-  },
+  ],
   "routes": [
     {
       "src": "/(.*)",
