@@ -3,6 +3,8 @@ import pg from "pg";
 import * as schema from "./shared/schema";
 
 const { Pool } = pg;
+const missingDbErrorMessage =
+  "A database connection string must be set via DATABASE_URL, SUPABASE_DB_POOLER_URL, POSTGRES_URL, POSTGRESQL_URL, DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, or PGHOST/PGUSER/PGPASSWORD/PGDATABASE.";
 
 function getEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
@@ -35,19 +37,28 @@ const connectionString =
   buildConnectionStringFromPgEnv();
 
 if (!connectionString) {
-  throw new Error(
-    "A database connection string must be set via DATABASE_URL, SUPABASE_DB_POOLER_URL, POSTGRES_URL, POSTGRESQL_URL, DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, or PGHOST/PGUSER/PGPASSWORD/PGDATABASE.",
-  );
+  console.warn(`[db] ${missingDbErrorMessage}`);
 }
 
-const databaseUrl = new URL(connectionString);
+type QueryablePool = Pick<pg.Pool, "query">;
 
-export const pool = new Pool({
-  host: databaseUrl.hostname,
-  port: Number(databaseUrl.port || 5432),
-  user: decodeURIComponent(databaseUrl.username),
-  password: decodeURIComponent(databaseUrl.password),
-  database: databaseUrl.pathname.replace(/^\//, ""),
-  ssl: { rejectUnauthorized: false },
-});
-export const db = drizzle(pool, { schema });
+export const pool: QueryablePool = connectionString
+  ? (() => {
+      const databaseUrl = new URL(connectionString);
+
+      return new Pool({
+        host: databaseUrl.hostname,
+        port: Number(databaseUrl.port || 5432),
+        user: decodeURIComponent(databaseUrl.username),
+        password: decodeURIComponent(databaseUrl.password),
+        database: databaseUrl.pathname.replace(/^\//, ""),
+        ssl: { rejectUnauthorized: false },
+      });
+    })()
+  : {
+      query: async () => {
+        throw new Error(missingDbErrorMessage);
+      },
+    };
+
+export const db = connectionString ? drizzle(pool as pg.Pool, { schema }) : null;
