@@ -16,7 +16,7 @@ import {
   type StatsResponse,
 } from "./shared/schema";
 
-const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "places";
+const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "plcses";
 const placePhotosBucket =
   process.env.SUPABASE_PLACE_PHOTOS_BUCKET ?? "place-photos";
 const placePhotosArePrivate =

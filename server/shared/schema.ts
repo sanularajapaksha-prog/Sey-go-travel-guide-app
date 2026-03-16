@@ -6,7 +6,7 @@ import { z } from "zod";
 const placesTableName =
   typeof process !== "undefined" && process.env?.SUPABASE_PLACES_TABLE
     ? process.env.SUPABASE_PLACES_TABLE
-    : "places";
+    : "plcses";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
