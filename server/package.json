@@ -7,12 +7,14 @@
     "dev": "npx tsx index.ts"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "@supabase/supabase-js": "^2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.1",
+    "express": "^4.19.2",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "tsx": "^4"
+    "tsx": "^4",
+    "typescript": "^5"
   }
 }
