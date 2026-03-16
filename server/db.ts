@@ -3,12 +3,40 @@ import pg from "pg";
 import * as schema from "./shared/schema";
 
 const { Pool } = pg;
+
+function getEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function buildConnectionStringFromPgEnv(): string | undefined {
+  const host = getEnv("PGHOST");
+  const user = getEnv("PGUSER");
+  const password = getEnv("PGPASSWORD");
+  const database = getEnv("PGDATABASE");
+  const port = getEnv("PGPORT") ?? "5432";
+
+  if (!host || !user || !password || !database) {
+    return undefined;
+  }
+
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+}
+
 const connectionString =
-  process.env.DATABASE_URL ?? process.env.SUPABASE_DB_POOLER_URL;
+  getEnv("DATABASE_URL") ??
+  getEnv("SUPABASE_DB_POOLER_URL") ??
+  getEnv("POSTGRES_URL") ??
+  getEnv("POSTGRESQL_URL") ??
+  getEnv("DATABASE_PRIVATE_URL") ??
+  getEnv("DATABASE_PUBLIC_URL") ??
+  getEnv("POSTGRES_PRISMA_URL") ??
+  getEnv("POSTGRES_URL_NON_POOLING") ??
+  buildConnectionStringFromPgEnv();
 
 if (!connectionString) {
   throw new Error(
-    "DATABASE_URL or SUPABASE_DB_POOLER_URL must be set.",
+    "A database connection string must be set via DATABASE_URL, SUPABASE_DB_POOLER_URL, POSTGRES_URL, POSTGRESQL_URL, DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, or PGHOST/PGUSER/PGPASSWORD/PGDATABASE.",
   );
 }
 
