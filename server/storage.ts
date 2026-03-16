@@ -14,7 +14,7 @@ import {
   type Photo,
   type InsertPhoto,
   type StatsResponse,
-} from "@shared/schema";
+} from "./shared/schema";
 
 const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "places";
 const placePhotosBucket =

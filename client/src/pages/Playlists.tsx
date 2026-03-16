@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPlaylistSchema, type InsertPlaylist } from "@shared/schema";
+import { insertPlaylistSchema, type InsertPlaylist } from "../../../server/shared/schema";
 
 export default function Playlists() {
   const { data: playlists, isLoading } = usePlaylists();

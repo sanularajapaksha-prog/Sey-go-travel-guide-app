@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import type { InsertPlace } from "@shared/schema";
+import type { InsertPlace } from "../../../server/shared/schema";
 
 export function usePlaces(search?: string) {
   return useQuery({

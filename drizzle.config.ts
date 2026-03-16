@@ -12,7 +12,7 @@ if (!connectionString) {
 
 export default defineConfig({
   out: "./migrations",
-  schema: "./shared/schema.ts",
+  schema: "./server/shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
     url: connectionString,

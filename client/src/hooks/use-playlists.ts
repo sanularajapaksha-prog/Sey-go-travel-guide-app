@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import type { InsertPlaylist } from "@shared/schema";
+import type { InsertPlaylist } from "../../../server/shared/schema";
 
 export function usePlaylists(status?: string) {
   return useQuery({
