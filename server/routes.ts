@@ -130,6 +130,30 @@ export async function registerRoutes(
   // Seed DB
   await seedDatabase();
 
+  const listPendingReviews = async (_req: any, res: any) => {
+    const reviews = await storage.getReviews();
+    const pending = reviews.filter((review) => review.status === "pending");
+    res.json(pending);
+  };
+
+  const updateReviewStatus = async (req: any, res: any) => {
+    const { status } = req.body;
+    const updated = await storage.updateReviewStatus(Number(req.params.id), status);
+    res.json(updated);
+  };
+
+  const listPendingPhotos = async (_req: any, res: any) => {
+    const photos = await storage.getPhotos();
+    const pending = photos.filter((photo) => photo.status === "pending");
+    res.json(pending);
+  };
+
+  const updatePhotoStatus = async (req: any, res: any) => {
+    const { status } = req.body;
+    const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
+    res.json(updated);
+  };
+
   // Dashboard
   app.get(api.dashboard.stats.path, async (_req, res) => {
     const stats = await storage.getDashboardStats();
@@ -213,28 +237,15 @@ export async function registerRoutes(
   });
 
   // Moderation
-  app.get(api.moderation.reviews.list.path, async (_req, res) => {
-    const reviews = await storage.getReviews();
-    // Filter for pending by default if specified in real logic, but here return all for demo or filter in storage
-    const pending = reviews.filter(r => r.status === 'pending');
-    res.json(pending);
-  });
-  app.patch(api.moderation.reviews.action.path, async (req, res) => {
-    const { status } = req.body;
-    const updated = await storage.updateReviewStatus(Number(req.params.id), status);
-    res.json(updated);
-  });
+  app.get(api.reviews.list.path, listPendingReviews);
+  app.patch(api.reviews.action.path, updateReviewStatus);
+  app.get(api.moderation.reviews.list.path, listPendingReviews);
+  app.patch(api.moderation.reviews.action.path, updateReviewStatus);
 
-  app.get(api.moderation.photos.list.path, async (_req, res) => {
-    const photos = await storage.getPhotos();
-    const pending = photos.filter(p => p.status === 'pending');
-    res.json(pending);
-  });
-  app.patch(api.moderation.photos.action.path, async (req, res) => {
-    const { status } = req.body;
-    const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
-    res.json(updated);
-  });
+  app.get(api.photos.list.path, listPendingPhotos);
+  app.patch(api.photos.action.path, updatePhotoStatus);
+  app.get(api.moderation.photos.list.path, listPendingPhotos);
+  app.patch(api.moderation.photos.action.path, updatePhotoStatus);
 
   return httpServer;
 }

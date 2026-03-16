@@ -146,6 +146,42 @@ export const api = {
       },
     },
   },
+  reviews: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/reviews',
+      input: z.object({ status: z.string().optional() }).optional(),
+      responses: {
+        200: z.array(z.custom<typeof reviews.$inferSelect>()),
+      },
+    },
+    action: {
+      method: 'PATCH' as const,
+      path: '/api/reviews/:id',
+      input: z.object({ status: z.enum(['approved', 'rejected']) }),
+      responses: {
+        200: z.custom<typeof reviews.$inferSelect>(),
+      },
+    },
+  },
+  photos: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/photos',
+      input: z.object({ status: z.string().optional() }).optional(),
+      responses: {
+        200: z.array(z.custom<typeof photos.$inferSelect>()),
+      },
+    },
+    action: {
+      method: 'PATCH' as const,
+      path: '/api/photos/:id',
+      input: z.object({ status: z.enum(['approved', 'rejected']) }),
+      responses: {
+        200: z.custom<typeof photos.$inferSelect>(),
+      },
+    },
+  },
   moderation: {
     reviews: {
       list: {
