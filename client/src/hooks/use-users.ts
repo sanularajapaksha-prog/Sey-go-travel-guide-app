@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
+import { getApiUrl } from "@/lib/api";
 
 export function useUsers(search?: string) {
   return useQuery({
     queryKey: [api.users.list.path, search],
     queryFn: async () => {
-      const url = new URL(api.users.list.path, window.location.origin);
+      const url = new URL(getApiUrl(api.users.list.path));
       if (search) url.searchParams.set("search", search);
       
       const res = await fetch(url.toString(), { credentials: "include" });
@@ -19,7 +20,7 @@ export function useUpdateUserStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: 'active' | 'disabled' }) => {
-      const url = buildUrl(api.users.updateStatus.path, { id });
+      const url = getApiUrl(buildUrl(api.users.updateStatus.path, { id }));
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -39,7 +40,7 @@ export function useDeleteUser() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = buildUrl(api.users.delete.path, { id });
+      const url = getApiUrl(buildUrl(api.users.delete.path, { id }));
       const res = await fetch(url, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete user");
     },

@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertPlaylist } from "../../../server/shared/schema";
+import { getApiUrl } from "@/lib/api";
 
 export function usePlaylists(status?: string) {
   return useQuery({
     queryKey: [api.playlists.list.path, status],
     queryFn: async () => {
-      const url = new URL(api.playlists.list.path, window.location.origin);
+      const url = new URL(getApiUrl(api.playlists.list.path));
       if (status) url.searchParams.set("status", status);
       
       const res = await fetch(url.toString(), { credentials: "include" });
@@ -20,7 +21,7 @@ export function useCreatePlaylist() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertPlaylist) => {
-      const res = await fetch(api.playlists.create.path, {
+      const res = await fetch(getApiUrl(api.playlists.create.path), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -39,7 +40,7 @@ export function useUpdatePlaylistStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: 'approved' | 'rejected' | 'pending' }) => {
-      const url = buildUrl(api.playlists.updateStatus.path, { id });
+      const url = getApiUrl(buildUrl(api.playlists.updateStatus.path, { id }));
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

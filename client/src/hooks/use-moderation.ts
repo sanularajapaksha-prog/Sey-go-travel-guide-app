@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
+import { getApiUrl } from "@/lib/api";
 
 // Reviews
 export function useReviews(status: string = 'pending') {
   return useQuery({
     queryKey: [api.moderation.reviews.list.path, status],
     queryFn: async () => {
-      const url = new URL(api.moderation.reviews.list.path, window.location.origin);
+      const url = new URL(getApiUrl(api.moderation.reviews.list.path));
       url.searchParams.set("status", status);
       
       const res = await fetch(url.toString(), { credentials: "include" });
@@ -20,7 +21,7 @@ export function useReviewAction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: 'approved' | 'rejected' }) => {
-      const url = buildUrl(api.moderation.reviews.action.path, { id });
+      const url = getApiUrl(buildUrl(api.moderation.reviews.action.path, { id }));
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -41,7 +42,7 @@ export function usePhotos(status: string = 'pending') {
   return useQuery({
     queryKey: [api.moderation.photos.list.path, status],
     queryFn: async () => {
-      const url = new URL(api.moderation.photos.list.path, window.location.origin);
+      const url = new URL(getApiUrl(api.moderation.photos.list.path));
       url.searchParams.set("status", status);
       
       const res = await fetch(url.toString(), { credentials: "include" });
@@ -55,7 +56,7 @@ export function usePhotoAction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: 'approved' | 'rejected' }) => {
-      const url = buildUrl(api.moderation.photos.action.path, { id });
+      const url = getApiUrl(buildUrl(api.moderation.photos.action.path, { id }));
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

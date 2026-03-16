@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertPlace } from "../../../server/shared/schema";
+import { getApiUrl } from "@/lib/api";
 
 export function usePlaces(search?: string) {
   return useQuery({
     queryKey: [api.places.list.path, search],
     queryFn: async () => {
-      const url = new URL(api.places.list.path, window.location.origin);
+      const url = new URL(getApiUrl(api.places.list.path));
       if (search) url.searchParams.set("search", search);
       
       const res = await fetch(url.toString(), { credentials: "include" });
@@ -20,7 +21,7 @@ export function useCreatePlace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertPlace) => {
-      const res = await fetch(api.places.create.path, {
+      const res = await fetch(getApiUrl(api.places.create.path), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -42,7 +43,7 @@ export function useUpdatePlace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertPlace> }) => {
-      const url = buildUrl(api.places.update.path, { id });
+      const url = getApiUrl(buildUrl(api.places.update.path, { id }));
       const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -62,7 +63,7 @@ export function useDeletePlace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = buildUrl(api.places.delete.path, { id });
+      const url = getApiUrl(buildUrl(api.places.delete.path, { id }));
       const res = await fetch(url, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete place");
     },
