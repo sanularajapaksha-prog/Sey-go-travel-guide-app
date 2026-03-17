@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import cors from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -12,6 +13,15 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+app.use(cors({
+  origin: [
+    "https://sanularajapaksha-prog.github.io",
+    "http://localhost:5000",
+    "http://localhost:5173",
+  ],
+  credentials: true,
+}));
 
 app.use(
   express.json({
