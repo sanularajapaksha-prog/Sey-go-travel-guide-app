@@ -8,7 +8,7 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const clientRoot = path.resolve(projectRoot, "client");
 
 export default defineConfig({
-  base: "/Sey-go-travel-guide-app/",
+  base: "/",
   envDir: projectRoot,
   plugins: [
     react(),
