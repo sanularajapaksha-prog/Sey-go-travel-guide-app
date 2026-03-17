@@ -12,8 +12,8 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState("admin@seygo.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -83,7 +83,7 @@ export default function Login() {
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
