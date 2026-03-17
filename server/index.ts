@@ -3,7 +3,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import cors from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,14 +13,22 @@ declare module "http" {
   }
 }
 
-app.use(cors({
-  origin: [
+app.use((req, res, next) => {
+  const allowed = [
     "https://sanularajapaksha-prog.github.io",
     "http://localhost:5000",
     "http://localhost:5173",
-  ],
-  credentials: true,
-}));
+  ];
+  const origin = req.headers.origin;
+  if (origin && allowed.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 app.use(
   express.json({
