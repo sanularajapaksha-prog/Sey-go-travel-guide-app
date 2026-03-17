@@ -9,6 +9,7 @@ const clientRoot = path.resolve(projectRoot, "client");
 
 export default defineConfig({
   base: "/Sey-go-travel-guide-app/",
+  envDir: projectRoot,
   plugins: [
     react(),
     runtimeErrorOverlay(),
