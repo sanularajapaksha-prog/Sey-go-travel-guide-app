@@ -15,6 +15,8 @@ declare module "http" {
 
 app.use((req, res, next) => {
   const allowed = [
+    "https://seygo.online",
+    "https://www.seygo.online",
     "https://sanularajapaksha-prog.github.io",
     "http://localhost:5000",
     "http://localhost:5173",
