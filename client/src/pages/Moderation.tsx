@@ -64,7 +64,7 @@ function ReviewsList() {
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Star 
                     key={i} 
-                    className={`h-4 w-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} 
+                    className={`h-4 w-4 ${i < Number(review.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`}
                   />
                 ))}
                 <span className="text-sm text-muted-foreground ml-2">by {review.userName}</span>

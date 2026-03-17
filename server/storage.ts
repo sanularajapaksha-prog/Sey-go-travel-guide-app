@@ -297,8 +297,10 @@ export class DatabaseStorage implements IStorage {
 
   async createPlace(place: InsertPlace): Promise<Place> {
     const placeId = `PLC${Date.now()}`;
-    const coordinates = place.coordinates ? JSON.parse(place.coordinates) : null;
-    const categories = place.amenities ? JSON.parse(place.amenities) : [];
+    let coordinates: { lat?: number; lng?: number } | null = null;
+    let categories: unknown[] = [];
+    try { coordinates = place.coordinates ? JSON.parse(place.coordinates) : null; } catch { coordinates = null; }
+    try { categories = place.amenities ? JSON.parse(place.amenities) : []; } catch { categories = []; }
     const result = await pool.query(
       `insert into public.${placesTableName}
        (place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status)
@@ -326,16 +328,22 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Place not found");
     }
 
-    const coordinates = updates.coordinates
-      ? JSON.parse(updates.coordinates)
-      : existing.coordinates
-        ? JSON.parse(existing.coordinates)
-        : null;
-    const categories = updates.amenities
-      ? JSON.parse(updates.amenities)
-      : existing.amenities
-        ? JSON.parse(existing.amenities)
-        : [];
+    let coordinates: { lat?: number; lng?: number } | null = null;
+    try {
+      coordinates = updates.coordinates
+        ? JSON.parse(updates.coordinates)
+        : existing.coordinates
+          ? JSON.parse(existing.coordinates)
+          : null;
+    } catch { coordinates = null; }
+    let categories: unknown[] = [];
+    try {
+      categories = updates.amenities
+        ? JSON.parse(updates.amenities)
+        : existing.amenities
+          ? JSON.parse(existing.amenities)
+          : [];
+    } catch { categories = []; }
 
     const result = await pool.query(
       `update public.${placesTableName}

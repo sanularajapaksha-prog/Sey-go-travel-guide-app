@@ -108,8 +108,12 @@ export default function AddPlace() {
         toast({ title: "Place created successfully" });
         navigate("/places");
       },
-      onError: () => {
-        toast({ title: "Failed to create place", variant: "destructive" });
+      onError: (error: unknown) => {
+        toast({
+          title: "Failed to create place",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+          variant: "destructive",
+        });
       }
     });
   };

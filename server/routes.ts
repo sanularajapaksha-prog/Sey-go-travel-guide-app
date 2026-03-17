@@ -7,13 +7,15 @@ import { z } from "zod";
 
 
 
+const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any>) =>
+  (req: any, res: any, next: any) => fn(req, res, next).catch(next);
 
 async function seedDatabase() {
   try {
     const users = await storage.getUsers();
     if (users.length === 0) {
       console.log("Seeding database...");
-    
+
     // Seed Users
     const user1 = await storage.createUser({ name: "Sarah Miller", email: "sarah@example.com", role: "user", status: "active" });
     const user2 = await storage.createUser({ name: "John Doe", email: "john@example.com", role: "user", status: "active" });
@@ -81,7 +83,7 @@ async function seedDatabase() {
     await storage.createTrip({ userId: user1.id, destination: "Sri Lanka", status: "completed" });
     await storage.createTrip({ userId: user2.id, destination: "Maldives", status: "planned" });
     await storage.createTrip({ userId: user1.id, destination: "Japan", status: "completed" });
-    
+
     // Seed Reviews
     await storage.createReview({
       userId: user1.id,
@@ -112,7 +114,7 @@ async function seedDatabase() {
       relatedId: place1.id,
       status: "pending"
     });
-    
+
     console.log("Database seeded successfully!");
     }
   } catch (err) {
@@ -130,61 +132,65 @@ export async function registerRoutes(
   // Seed DB
   await seedDatabase();
 
-  const listPendingReviews = async (_req: any, res: any) => {
+  const listPendingReviews = asyncHandler(async (_req, res) => {
     const reviews = await storage.getReviews();
     const pending = reviews.filter((review) => review.status === "pending");
     res.json(pending);
-  };
+  });
 
-  const updateReviewStatus = async (req: any, res: any) => {
+  const updateReviewStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
+    if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updateReviewStatus(Number(req.params.id), status);
+    if (!updated) return res.status(404).json({ message: "Review not found" });
     res.json(updated);
-  };
+  });
 
-  const listPendingPhotos = async (_req: any, res: any) => {
+  const listPendingPhotos = asyncHandler(async (_req, res) => {
     const photos = await storage.getPhotos();
     const pending = photos.filter((photo) => photo.status === "pending");
     res.json(pending);
-  };
+  });
 
-  const updatePhotoStatus = async (req: any, res: any) => {
+  const updatePhotoStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
+    if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
+    if (!updated) return res.status(404).json({ message: "Photo not found" });
     res.json(updated);
-  };
+  });
 
   // Dashboard
-  app.get(api.dashboard.stats.path, async (_req, res) => {
+  app.get(api.dashboard.stats.path, asyncHandler(async (_req, res) => {
     const stats = await storage.getDashboardStats();
     res.json(stats);
-  });
-  app.get(api.dashboard.activity.path, async (_req, res) => {
+  }));
+  app.get(api.dashboard.activity.path, asyncHandler(async (_req, res) => {
     const activity = await storage.getActivityStats();
     res.json(activity);
-  });
+  }));
 
   // Places
-  app.get(api.places.list.path, async (_req, res) => {
+  app.get(api.places.list.path, asyncHandler(async (_req, res) => {
     const places = await storage.getPlaces();
     res.json(places);
-  });
-  app.get(api.places.get.path, async (req, res) => {
+  }));
+  app.get(api.places.get.path, asyncHandler(async (req, res) => {
     const place = await storage.getPlace(req.params.id);
     if (!place) return res.status(404).json({ message: "Place not found" });
     res.json(place);
-  });
-  app.post(api.places.create.path, async (req, res) => {
+  }));
+  app.post(api.places.create.path, asyncHandler(async (req, res) => {
+    const body = req.body;
+    // Convert coordinates object to JSON string if needed
+    if (body.coordinates && typeof body.coordinates === 'object') {
+      body.coordinates = JSON.stringify(body.coordinates);
+    }
+    // Convert amenities array to JSON string if needed
+    if (body.amenities && Array.isArray(body.amenities)) {
+      body.amenities = JSON.stringify(body.amenities);
+    }
     try {
-      const body = req.body;
-      // Convert coordinates object to JSON string if needed
-      if (body.coordinates && typeof body.coordinates === 'object') {
-        body.coordinates = JSON.stringify(body.coordinates);
-      }
-      // Convert amenities array to JSON string if needed
-      if (body.amenities && Array.isArray(body.amenities)) {
-        body.amenities = JSON.stringify(body.amenities);
-      }
       const input = api.places.create.input.parse(body);
       const place = await storage.createPlace(input);
       res.status(201).json(place);
@@ -194,47 +200,51 @@ export async function registerRoutes(
       }
       throw err;
     }
-  });
-  app.put(api.places.update.path, async (req, res) => {
+  }));
+  app.put(api.places.update.path, asyncHandler(async (req, res) => {
     const updated = await storage.updatePlace(req.params.id, req.body);
     if (!updated) return res.status(404).json({ message: "Place not found" });
     res.json(updated);
-  });
-  app.delete(api.places.delete.path, async (req, res) => {
+  }));
+  app.delete(api.places.delete.path, asyncHandler(async (req, res) => {
     await storage.deletePlace(req.params.id);
     res.status(204).end();
-  });
+  }));
 
   // Playlists
-  app.get(api.playlists.list.path, async (_req, res) => {
+  app.get(api.playlists.list.path, asyncHandler(async (_req, res) => {
     const playlists = await storage.getPlaylists();
     res.json(playlists);
-  });
-  app.post(api.playlists.create.path, async (req, res) => {
+  }));
+  app.post(api.playlists.create.path, asyncHandler(async (req, res) => {
     const input = api.playlists.create.input.parse(req.body);
     const playlist = await storage.createPlaylist(input);
     res.status(201).json(playlist);
-  });
-  app.patch(api.playlists.updateStatus.path, async (req, res) => {
+  }));
+  app.patch(api.playlists.updateStatus.path, asyncHandler(async (req, res) => {
     const { status } = req.body;
+    if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updatePlaylistStatus(Number(req.params.id), status);
+    if (!updated) return res.status(404).json({ message: "Playlist not found" });
     res.json(updated);
-  });
+  }));
 
   // Users
-  app.get(api.users.list.path, async (_req, res) => {
+  app.get(api.users.list.path, asyncHandler(async (_req, res) => {
     const users = await storage.getUsers();
     res.json(users);
-  });
-  app.patch(api.users.updateStatus.path, async (req, res) => {
+  }));
+  app.patch(api.users.updateStatus.path, asyncHandler(async (req, res) => {
     const { status } = req.body;
+    if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updateUserStatus(Number(req.params.id), status);
+    if (!updated) return res.status(404).json({ message: "User not found" });
     res.json(updated);
-  });
-  app.delete(api.users.delete.path, async (req, res) => {
+  }));
+  app.delete(api.users.delete.path, asyncHandler(async (req, res) => {
     await storage.deleteUser(Number(req.params.id));
     res.status(204).end();
-  });
+  }));
 
   // Moderation
   app.get(api.reviews.list.path, listPendingReviews);
