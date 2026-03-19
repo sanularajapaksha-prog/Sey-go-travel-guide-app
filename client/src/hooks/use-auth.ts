@@ -15,6 +15,26 @@ type AuthUser = {
   name: string;
 };
 
+async function verifyAdminRole(email: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase not configured.");
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("role")
+    .eq("email", email)
+    .single();
+
+  if (error || !data) {
+    await supabase.auth.signOut();
+    throw new Error("Access denied. Admin only.");
+  }
+
+  if (data.role !== "admin") {
+    await supabase.auth.signOut();
+    throw new Error("Access denied. Admin only.");
+  }
+}
+
 type LoginInput = {
   email: string;
   password: string;
@@ -59,14 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
-      if (error) {
+      if (error || !data.session?.user) {
         setUser(null);
-      } else {
-        setUser(toAuthUser(data.session?.user ?? null));
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
+      try {
+        await verifyAdminRole(data.session.user.email!);
+        if (mounted) setUser(toAuthUser(data.session.user));
+      } catch {
+        if (mounted) setUser(null);
+      }
+      if (mounted) setIsLoading(false);
     });
 
     const {
@@ -102,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           throw new Error(error.message);
         }
+
+        await verifyAdminRole(data.user.email!);
 
         setUser(toAuthUser(data.user));
       },
