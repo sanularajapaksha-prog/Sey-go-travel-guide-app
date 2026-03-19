@@ -524,11 +524,11 @@ export class DatabaseStorage implements IStorage {
   async getDashboardStats(): Promise<StatsResponse> {
     const [allTrips, allPlaylists, allPlaces, allUsers, allReviews] =
       await Promise.all([
-        this.getTrips(),
-        this.getPlaylists(),
-        this.getPlaces(),
-        this.getUsers(),
-        this.getReviews(),
+        this.getTrips().catch(() => [] as Trip[]),
+        this.getPlaylists().catch(() => [] as Playlist[]),
+        this.getPlaces().catch(() => [] as Place[]),
+        this.getUsers().catch(() => [] as User[]),
+        this.getReviews().catch(() => [] as Review[]),
       ]);
 
     return {
@@ -546,9 +546,9 @@ export class DatabaseStorage implements IStorage {
     { date: string; trips: number; playlists: number; users: number }[]
   > {
     const [allTrips, allPlaylists, allUsers] = await Promise.all([
-      this.getTrips(),
-      this.getPlaylists(),
-      this.getUsers(),
+      this.getTrips().catch(() => [] as Trip[]),
+      this.getPlaylists().catch(() => [] as Playlist[]),
+      this.getUsers().catch(() => [] as User[]),
     ]);
 
     const now = new Date();
