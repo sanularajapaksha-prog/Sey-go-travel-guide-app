@@ -229,12 +229,36 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getUsers(): Promise<User[]> {
-    const result = await pool.query(
-      `select id, name, email, role, status, joined_at
-       from public.users
-       order by joined_at desc nulls last, id desc`,
+    // Fetch real authenticated users from Supabase Auth
+    const { data: authData, error } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (error) throw error;
+
+    // Fetch role/status from public.users keyed by email
+    const dbResult = await pool.query(
+      `select id, email, name, role, status, joined_at from public.users`,
+    ).catch(() => ({ rows: [] as any[] }));
+    const dbByEmail = new Map(
+      (dbResult.rows as DbUserRow[]).map((r) => [r.email, r]),
     );
-    return result.rows.map((row) => mapUser(row as DbUserRow));
+
+    return authData.users.map((authUser, index) => {
+      const db = dbByEmail.get(authUser.email ?? "");
+      return {
+        id: db ? asNumber(db.id) : index + 1,
+        name:
+          db?.name ||
+          (authUser.user_metadata?.name as string | undefined) ||
+          authUser.email?.split("@")[0] ||
+          "Unknown",
+        email: authUser.email ?? "",
+        role: (db?.role ?? (authUser.user_metadata?.role as string | undefined) ?? "user") as string,
+        status: (db?.status ?? "active") as string,
+        joinedAt: new Date(authUser.created_at),
+      } as User;
+    });
   }
 
   async getUser(id: number): Promise<User | undefined> {
