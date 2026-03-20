@@ -16,7 +16,7 @@ import {
   type StatsResponse,
 } from "./shared/schema";
 
-const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "plcses";
+const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "tourist_places";
 const placePhotosBucket =
   process.env.SUPABASE_PLACE_PHOTOS_BUCKET ?? "place-photos";
 const placePhotosArePrivate =
@@ -29,20 +29,6 @@ type DbUserRow = {
   role: string | null;
   status: string | null;
   joined_at: string | Date | null;
-};
-
-type DbPlaceRow = {
-  place_id: string;
-  name: string;
-  primary_category: string | null;
-  categories: unknown;
-  lat: number | null;
-  lng: number | null;
-  address: string | null;
-  avg_rating: string | number | null;
-  photo_storage_paths: string[] | null;
-  status: string | null;
-  created_at: string | Date | null;
 };
 
 type DbPlaylistRow = {
@@ -104,11 +90,34 @@ function toPlaceId(value: string | number): string {
   return String(value);
 }
 
-function buildPlaceImageUrl(photoPaths: string[] | null): string | null {
-  const firstPath = photoPaths?.[0];
-  if (!firstPath || placePhotosArePrivate) return null;
-  const { data } = supabase.storage.from(placePhotosBucket).getPublicUrl(firstPath);
-  return data.publicUrl || null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTouristPlace(row: any): Place {
+  // Resolve image: prefer direct image_url, fall back to photo_storage_paths bucket URL
+  let imageUrl: string | null = row.image_url ?? null;
+  if (!imageUrl && Array.isArray(row.photo_storage_paths) && row.photo_storage_paths.length > 0 && !placePhotosArePrivate) {
+    const { data } = supabase.storage.from(placePhotosBucket).getPublicUrl(row.photo_storage_paths[0]);
+    imageUrl = data.publicUrl || null;
+  }
+
+  const lat = row.lat ?? null;
+  const lng = row.lng ?? null;
+
+  return {
+    id: row.id ?? row.place_id,
+    name: row.name ?? "",
+    description: row.description ?? null,
+    location: row.location ?? row.address ?? null,
+    category: row.category ?? row.primary_category ?? row.type ?? null,
+    imageUrl,
+    rating: row.rating ?? row.avg_rating ?? "0",
+    status: row.status ?? "active",
+    coordinates: lat != null && lng != null ? JSON.stringify({ lat, lng }) : (row.coordinates ?? null),
+    amenities: Array.isArray(row.amenities) ? JSON.stringify(row.amenities) : (row.amenities ?? null),
+    difficulty: row.difficulty ?? null,
+    bestTime: row.best_time ?? null,
+    entryFee: row.entry_fee ?? null,
+    createdAt: row.created_at ? new Date(row.created_at) : null,
+  };
 }
 
 function mapUser(row: DbUserRow): User {
@@ -119,28 +128,6 @@ function mapUser(row: DbUserRow): User {
     role: row.role ?? "user",
     status: row.status ?? "active",
     joinedAt: asDate(row.joined_at),
-  };
-}
-
-function mapPlace(row: DbPlaceRow): Place {
-  return {
-    id: row.place_id as unknown as number,
-    name: row.name,
-    description: null,
-    location: row.address,
-    category: row.primary_category,
-    imageUrl: buildPlaceImageUrl(row.photo_storage_paths),
-    rating: row.avg_rating == null ? "0" : String(row.avg_rating),
-    status: row.status ?? "active",
-    coordinates:
-      row.lat != null && row.lng != null
-        ? JSON.stringify({ lat: row.lat, lng: row.lng })
-        : null,
-    amenities: Array.isArray(row.categories) ? JSON.stringify(row.categories) : null,
-    difficulty: null,
-    bestTime: null,
-    entryFee: null,
-    createdAt: asDate(row.created_at),
   };
 }
 
@@ -299,107 +286,79 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlaces(): Promise<Place[]> {
-    const result = await pool.query(
-      `select place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at
-       from public.${placesTableName}
-       order by created_at desc nulls last, place_id asc`,
-    );
-    return result.rows.map((row) => mapPlace(row as DbPlaceRow));
+    const { data, error } = await supabase
+      .from(placesTableName)
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapTouristPlace);
   }
 
   async getPlace(id: string | number): Promise<Place | undefined> {
-    const result = await pool.query(
-      `select place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at
-       from public.${placesTableName}
-       where place_id = $1
-       limit 1`,
-      [toPlaceId(id)],
-    );
-    const row = result.rows[0] as DbPlaceRow | undefined;
-    return row ? mapPlace(row) : undefined;
+    const { data, error } = await supabase
+      .from(placesTableName)
+      .select("*")
+      .or(`id.eq.${id},place_id.eq.${id}`)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapTouristPlace(data) : undefined;
   }
 
   async createPlace(place: InsertPlace): Promise<Place> {
-    const placeId = `PLC${Date.now()}`;
     let coordinates: { lat?: number; lng?: number } | null = null;
-    let categories: unknown[] = [];
     try { coordinates = place.coordinates ? JSON.parse(place.coordinates) : null; } catch { coordinates = null; }
-    try { categories = place.amenities ? JSON.parse(place.amenities) : []; } catch { categories = []; }
-    const result = await pool.query(
-      `insert into public.${placesTableName}
-       (place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status)
-       values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::jsonb, $10)
-       returning place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at`,
-      [
-        placeId,
-        place.name,
-        place.category ?? null,
-        JSON.stringify(categories),
-        coordinates?.lat ?? null,
-        coordinates?.lng ?? null,
-        place.location ?? null,
-        place.rating ?? "0",
-        JSON.stringify([]),
-        place.status ?? "active",
-      ],
-    );
-    return mapPlace(result.rows[0] as DbPlaceRow);
+    const { data, error } = await supabase
+      .from(placesTableName)
+      .insert({
+        name: place.name,
+        description: place.description ?? null,
+        location: place.location ?? null,
+        category: place.category ?? null,
+        image_url: place.imageUrl ?? null,
+        rating: place.rating ?? "0",
+        status: place.status ?? "active",
+        lat: coordinates?.lat ?? null,
+        lng: coordinates?.lng ?? null,
+        amenities: place.amenities ?? null,
+      })
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapTouristPlace(data);
   }
 
   async updatePlace(id: string | number, updates: Partial<InsertPlace>): Promise<Place> {
-    const existing = await this.getPlace(id);
-    if (!existing) {
-      throw new Error("Place not found");
-    }
-
     let coordinates: { lat?: number; lng?: number } | null = null;
-    try {
-      coordinates = updates.coordinates
-        ? JSON.parse(updates.coordinates)
-        : existing.coordinates
-          ? JSON.parse(existing.coordinates)
-          : null;
-    } catch { coordinates = null; }
-    let categories: unknown[] = [];
-    try {
-      categories = updates.amenities
-        ? JSON.parse(updates.amenities)
-        : existing.amenities
-          ? JSON.parse(existing.amenities)
-          : [];
-    } catch { categories = []; }
+    try { coordinates = updates.coordinates ? JSON.parse(updates.coordinates) : null; } catch { coordinates = null; }
+    const patch: Record<string, unknown> = {};
+    if (updates.name !== undefined) patch.name = updates.name;
+    if (updates.description !== undefined) patch.description = updates.description;
+    if (updates.location !== undefined) patch.location = updates.location;
+    if (updates.category !== undefined) patch.category = updates.category;
+    if ((updates as any).imageUrl !== undefined) patch.image_url = (updates as any).imageUrl;
+    if (updates.rating !== undefined) patch.rating = updates.rating;
+    if (updates.status !== undefined) patch.status = updates.status;
+    if (updates.amenities !== undefined) patch.amenities = updates.amenities;
+    if (coordinates?.lat !== undefined) patch.lat = coordinates.lat;
+    if (coordinates?.lng !== undefined) patch.lng = coordinates.lng;
 
-    const result = await pool.query(
-      `update public.${placesTableName}
-       set name = $2,
-           primary_category = $3,
-           categories = $4::jsonb,
-           lat = $5,
-           lng = $6,
-           address = $7,
-           avg_rating = $8,
-           status = $9
-       where place_id = $1
-       returning place_id, name, primary_category, categories, lat, lng, address, avg_rating, photo_storage_paths, status, created_at`,
-      [
-        toPlaceId(id),
-        updates.name ?? existing.name,
-        updates.category ?? existing.category,
-        JSON.stringify(categories),
-        coordinates?.lat ?? null,
-        coordinates?.lng ?? null,
-        updates.location ?? existing.location,
-        updates.rating ?? existing.rating,
-        updates.status ?? existing.status,
-      ],
-    );
-    return mapPlace(result.rows[0] as DbPlaceRow);
+    const { data, error } = await supabase
+      .from(placesTableName)
+      .update(patch)
+      .or(`id.eq.${id},place_id.eq.${id}`)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapTouristPlace(data);
   }
 
   async deletePlace(id: string | number): Promise<void> {
-    await pool.query(`delete from public.${placesTableName} where place_id = $1`, [
-      toPlaceId(id),
-    ]);
+    const { error } = await supabase
+      .from(placesTableName)
+      .delete()
+      .or(`id.eq.${id},place_id.eq.${id}`);
+    if (error) throw error;
   }
 
   async getPlaylists(): Promise<Playlist[]> {
