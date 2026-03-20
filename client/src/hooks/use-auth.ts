@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { hasSupabaseClientConfig, supabase } from "@/lib/supabase";
+import { getApiUrl } from "@/lib/api";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 type AuthUser = {
@@ -15,22 +16,12 @@ type AuthUser = {
   name: string;
 };
 
-async function verifyAdminRole(email: string): Promise<void> {
-  if (!supabase) throw new Error("Supabase not configured.");
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("role")
-    .eq("email", email)
-    .single();
-
-  if (error || !data) {
-    await supabase.auth.signOut();
-    throw new Error("Access denied. Admin only.");
-  }
-
-  if (data.role !== "admin") {
-    await supabase.auth.signOut();
+async function verifyAdminRole(token: string): Promise<void> {
+  const res = await fetch(getApiUrl("/api/auth/me"), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    if (supabase) await supabase.auth.signOut();
     throw new Error("Access denied. Admin only.");
   }
 }
@@ -81,13 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
-      if (error || !data.session?.user) {
+      if (error || !data.session) {
         setUser(null);
         setIsLoading(false);
         return;
       }
       try {
-        await verifyAdminRole(data.session.user.email!);
+        await verifyAdminRole(data.session.access_token);
         if (mounted) setUser(toAuthUser(data.session.user));
       } catch {
         if (mounted) setUser(null);
@@ -98,13 +89,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user?.email) {
+      if (!session?.access_token) {
         setUser(null);
         setIsLoading(false);
         return;
       }
       try {
-        await verifyAdminRole(session.user.email);
+        await verifyAdminRole(session.access_token);
         setUser(toAuthUser(session.user));
       } catch {
         setUser(null);
@@ -139,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error(error.message);
         }
 
-        await verifyAdminRole(data.user.email!);
+        await verifyAdminRole(data.session.access_token);
 
         setUser(toAuthUser(data.user));
       },

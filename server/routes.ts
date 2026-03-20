@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { supabase } from "./supabase";
+import { pool } from "./db";
 import { api } from "./shared/routes";
 import { z } from "zod";
 
@@ -128,6 +130,33 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Setup authentication (BEFORE other routes)
 
+
+  // Admin role verification endpoint (uses service role key – bypasses RLS)
+  app.get("/api/auth/me", asyncHandler(async (req: any, res: any) => {
+    const authHeader = (req.headers.authorization as string) ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) return res.status(401).json({ message: "No token" });
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user?.email) return res.status(401).json({ message: "Invalid token" });
+
+    let role: string | null = null;
+    try {
+      const result = await pool.query(
+        `SELECT role FROM public.users WHERE email = $1 LIMIT 1`,
+        [user.email]
+      );
+      role = result.rows[0]?.role ?? null;
+    } catch {
+      role = null;
+    }
+
+    if (role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admin only." });
+    }
+
+    return res.json({ isAdmin: true, email: user.email });
+  }));
 
   // Seed DB
   await seedDatabase();
