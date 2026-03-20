@@ -97,8 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(toAuthUser(session?.user ?? null));
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user?.email) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      try {
+        await verifyAdminRole(session.user.email);
+        setUser(toAuthUser(session.user));
+      } catch {
+        setUser(null);
+      }
       setIsLoading(false);
     });
 
