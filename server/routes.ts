@@ -225,7 +225,7 @@ export async function registerRoutes(
       res.status(201).json(place);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+        return res.status(400).json({ message: err.issues[0]?.message ?? "Validation error" });
       }
       throw err;
     }
