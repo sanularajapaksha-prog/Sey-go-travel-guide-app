@@ -286,12 +286,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlaces(): Promise<Place[]> {
-    const { data, error } = await supabase
-      .from(placesTableName)
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return (data ?? []).map(mapTouristPlace);
+    const pageSize = 1000;
+    let all: unknown[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from(placesTableName)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return all.map(mapTouristPlace);
   }
 
   async getPlace(id: string | number): Promise<Place | undefined> {
