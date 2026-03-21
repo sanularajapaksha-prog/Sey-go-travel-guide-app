@@ -5,7 +5,8 @@ import {
   insertPlaylistSchema, playlists,
   insertReviewSchema, reviews,
   insertPhotoSchema, photos,
-  insertTripSchema, trips
+  insertTripSchema, trips,
+  notifications
 } from './schema';
 
 export const errorSchemas = {
@@ -217,6 +218,22 @@ export const api = {
         responses: {
           200: z.custom<typeof photos.$inferSelect>(),
         },
+      },
+    },
+  },
+  notifications: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/notifications',
+      responses: {
+        200: z.array(z.custom<typeof notifications.$inferSelect>()),
+      },
+    },
+    markRead: {
+      method: 'PATCH' as const,
+      path: '/api/notifications/read',
+      responses: {
+        200: z.object({ success: z.boolean() }),
       },
     },
   },

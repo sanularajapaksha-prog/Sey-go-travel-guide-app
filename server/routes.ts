@@ -172,6 +172,11 @@ export async function registerRoutes(
     if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updateReviewStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Review not found" });
+    await storage.createNotification({
+      title: "Review Moderated",
+      message: `Review by ${updated.userName} for ${updated.placeName} was ${status}.`,
+      type: status === "approved" ? "success" : "warning"
+    });
     res.json(updated);
   });
 
@@ -186,6 +191,11 @@ export async function registerRoutes(
     if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Photo not found" });
+    await storage.createNotification({
+      title: "Photo Moderated",
+      message: `A photo submitted by ${updated.uploaderName} was ${status}.`,
+      type: status === "approved" ? "success" : "warning"
+    });
     res.json(updated);
   });
 
@@ -222,6 +232,11 @@ export async function registerRoutes(
     try {
       const input = api.places.create.input.parse(body);
       const place = await storage.createPlace(input);
+      await storage.createNotification({
+        title: "New Place Added",
+        message: `${place.name} has been added to places.`,
+        type: "success"
+      });
       res.status(201).json(place);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -233,6 +248,11 @@ export async function registerRoutes(
   app.put(api.places.update.path, asyncHandler(async (req, res) => {
     const updated = await storage.updatePlace(req.params.id, req.body);
     if (!updated) return res.status(404).json({ message: "Place not found" });
+    await storage.createNotification({
+      title: "Place Updated",
+      message: `${updated.name} has been updated.`,
+      type: "info"
+    });
     res.json(updated);
   }));
   app.delete(api.places.delete.path, asyncHandler(async (req, res) => {
@@ -248,6 +268,11 @@ export async function registerRoutes(
   app.post(api.playlists.create.path, asyncHandler(async (req, res) => {
     const input = api.playlists.create.input.parse(req.body);
     const playlist = await storage.createPlaylist(input);
+    await storage.createNotification({
+      title: "New Playlist Created",
+      message: `${playlist.name} has been created.`,
+      type: "success"
+    });
     res.status(201).json(playlist);
   }));
   app.patch(api.playlists.updateStatus.path, asyncHandler(async (req, res) => {
@@ -255,6 +280,11 @@ export async function registerRoutes(
     if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updatePlaylistStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Playlist not found" });
+    await storage.createNotification({
+      title: "Playlist Status Updated",
+      message: `Playlist ${updated.name} is now ${status}.`,
+      type: "info"
+    });
     res.json(updated);
   }));
 
@@ -268,6 +298,11 @@ export async function registerRoutes(
     if (!status) return res.status(400).json({ message: "status is required" });
     const updated = await storage.updateUserStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "User not found" });
+    await storage.createNotification({
+      title: "User Status Updated",
+      message: `User ${updated.name}'s status was updated to ${status}.`,
+      type: "warning"
+    });
     res.json(updated);
   }));
   app.delete(api.users.delete.path, asyncHandler(async (req, res) => {
@@ -285,6 +320,16 @@ export async function registerRoutes(
   app.patch(api.photos.action.path, updatePhotoStatus);
   app.get(api.moderation.photos.list.path, listPendingPhotos);
   app.patch(api.moderation.photos.action.path, updatePhotoStatus);
+
+  // Notifications
+  app.get(api.notifications.list.path, asyncHandler(async (_req, res) => {
+    const notifications = await storage.getNotifications();
+    res.json(notifications);
+  }));
+  app.patch(api.notifications.markRead.path, asyncHandler(async (_req, res) => {
+    await storage.markNotificationsAsRead();
+    res.json({ success: true });
+  }));
 
   return httpServer;
 }

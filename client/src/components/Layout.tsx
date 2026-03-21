@@ -1,5 +1,6 @@
 import { Sidebar } from "./Sidebar";
-import { Bell, Search } from "lucide-react";
+import { NotificationPanel } from "./NotificationPanel";
+import { Search } from "lucide-react";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,10 +29,7 @@ export function Layout({ children, title, action }: LayoutProps) {
               />
             </div>
             
-            <button className="relative p-2 text-muted-foreground hover:text-primary transition-colors">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-            </button>
+            <NotificationPanel />
             
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-purple-500 shadow-lg shadow-primary/20 ring-2 ring-white cursor-pointer" />
           </div>

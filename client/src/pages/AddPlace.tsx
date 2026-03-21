@@ -95,9 +95,9 @@ export default function AddPlace() {
       status: "active" as const,
       rating: "0",
       coordinates: data.latitude && data.longitude 
-        ? { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) }
+        ? JSON.stringify({ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) })
         : undefined,
-      amenities: selectedAmenities,
+      amenities: JSON.stringify(selectedAmenities),
       difficulty: data.difficulty || undefined,
       bestTime: selectedBestTimes.join(", ") || undefined,
       entryFee: data.entryFee || undefined,

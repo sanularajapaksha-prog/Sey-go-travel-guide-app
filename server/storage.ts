@@ -14,6 +14,8 @@ import {
   type Photo,
   type InsertPhoto,
   type StatsResponse,
+  type Notification,
+  type InsertNotification,
 } from "./shared/schema";
 
 const placesTableName = process.env.SUPABASE_PLACES_TABLE ?? "tourist_places";
@@ -75,6 +77,15 @@ type DbPhotoRow = {
   related_type: string | null;
   related_id: string | null;
   status: string | null;
+  created_at: string | Date | null;
+};
+
+type DbNotificationRow = {
+  id: string | number;
+  title: string;
+  message: string;
+  type: string | null;
+  is_read: boolean | null;
   created_at: string | Date | null;
 };
 
@@ -186,6 +197,17 @@ function mapPhoto(row: DbPhotoRow): Photo {
   };
 }
 
+function mapNotification(row: DbNotificationRow): Notification {
+  return {
+    id: asNumber(row.id),
+    title: row.title,
+    message: row.message,
+    type: row.type ?? "info",
+    isRead: row.is_read ?? false,
+    createdAt: asDate(row.created_at),
+  };
+}
+
 export interface IStorage {
   getUsers(): Promise<User[]>;
   getUser(id: number): Promise<User | undefined>;
@@ -212,6 +234,9 @@ export interface IStorage {
   getActivityStats(): Promise<
     { date: string; trips: number; playlists: number; users: number }[]
   >;
+  getNotifications(): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationsAsRead(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -588,6 +613,33 @@ export class DatabaseStorage implements IStorage {
         users: cumulativeUsers,
       };
     });
+  }
+
+  async getNotifications(): Promise<Notification[]> {
+    const result = await pool.query(
+      `select id, title, message, type, is_read, created_at
+       from public.notifications
+       order by created_at desc nulls last
+       limit 50`,
+    );
+    return result.rows.map((row) => mapNotification(row as DbNotificationRow));
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const result = await pool.query(
+      `insert into public.notifications
+       (title, message, type, is_read)
+       values ($1, $2, $3, false)
+       returning id, title, message, type, is_read, created_at`,
+      [notification.title, notification.message, notification.type ?? "info"],
+    );
+    return mapNotification(result.rows[0] as DbNotificationRow);
+  }
+
+  async markNotificationsAsRead(): Promise<void> {
+    await pool.query(
+      `update public.notifications set is_read = true where is_read = false`
+    );
   }
 }
 

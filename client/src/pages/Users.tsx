@@ -15,7 +15,7 @@ export default function Users() {
   const deleteUser = useDeleteUser();
   const { toast } = useToast();
 
-  const handleToggleStatus = (id: number, currentStatus: string) => {
+  const handleToggleStatus = (id: number, currentStatus: string | null) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
     updateStatus.mutate({ id, status: newStatus }, {
       onSuccess: () => toast({ title: `User ${newStatus}` }),
