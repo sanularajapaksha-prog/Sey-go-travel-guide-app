@@ -1,6 +1,9 @@
 import { Sidebar } from "./Sidebar";
 import { NotificationPanel } from "./NotificationPanel";
-import { Search } from "lucide-react";
+import { Search, LogOut, User, Settings } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +12,8 @@ interface LayoutProps {
 }
 
 export function Layout({ children, title, action }: LayoutProps) {
+  const { user, logout } = useAuth();
+
   return (
     <div className="flex min-h-screen bg-secondary/30">
       <Sidebar />
@@ -31,7 +36,30 @@ export function Layout({ children, title, action }: LayoutProps) {
             
             <NotificationPanel />
             
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-purple-500 shadow-lg shadow-primary/20 ring-2 ring-white cursor-pointer" />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-blue-500 shadow-md ring-2 ring-white cursor-pointer outline-none focus:ring-blue-300 transition-all hover:shadow-lg" />
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-56 p-0 bg-white border border-blue-100 shadow-xl rounded-xl">
+                <div className="flex flex-col space-y-1 p-4 border-b border-blue-50 bg-blue-50/30">
+                  <p className="text-sm font-semibold text-blue-900">{user?.name || "Admin User"}</p>
+                  <p className="text-xs text-blue-600/80">{user?.email || "admin@seygo.com"}</p>
+                </div>
+                <div className="p-2 space-y-1">
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors">
+                    <User className="mr-2 h-4 w-4" /> Profile
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors">
+                    <Settings className="mr-2 h-4 w-4" /> Settings
+                  </Button>
+                </div>
+                <div className="p-2 border-t border-blue-50">
+                  <Button onClick={() => logout()} variant="ghost" className="w-full justify-start text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors">
+                    <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </header>
 

@@ -6,6 +6,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, ListMusic, Users, Shield, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProfileBanner } from "@/components/ProfileBanner";
 
 function StatCard({ title, value, icon: Icon, colorClass }: { title: string, value: string | number, icon: any, colorClass: string }) {
   return (
@@ -42,6 +43,9 @@ export default function Dashboard() {
 
   return (
     <Layout title="Dashboard">
+      {/* Profile Banner */}
+      <ProfileBanner stats={stats || undefined} />
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
