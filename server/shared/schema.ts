@@ -63,10 +63,15 @@ export const reviews = pgTable("reviews", {
   userName: text("user_name"),
   placeId: integer("place_id").references(() => places.id),
   placeName: text("place_name"),
+  title: text("title"),
   content: text("content"),
   rating: numeric("rating").default("0"),
   status: text("status").default("pending"), // 'pending' | 'approved' | 'rejected'
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  approvedAt: timestamp("approved_at"),
+  approvedBy: text("approved_by"),
+  rejectionReason: text("rejection_reason"),
 });
 
 export const photos = pgTable("photos", {
@@ -123,7 +128,14 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, joine
 export const insertPlaceSchema = createInsertSchema(places).omit({ id: true, createdAt: true });
 export const insertPlaylistSchema = createInsertSchema(playlists).omit({ id: true, createdAt: true });
 export const insertTripSchema = createInsertSchema(trips).omit({ id: true, createdAt: true });
-export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true,
+  approvedBy: true,
+  rejectionReason: true,
+});
 export const insertPhotoSchema = createInsertSchema(photos).omit({ id: true, createdAt: true });
 export const insertPlaylistPlaceSchema = createInsertSchema(playlistPlaces).omit({ id: true, createdAt: true });
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });

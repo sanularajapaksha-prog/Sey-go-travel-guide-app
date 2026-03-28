@@ -62,10 +62,15 @@ type DbReviewRow = {
   user_name: string | null;
   place_id: string | null;
   place_name: string | null;
+  title: string | null;
   content: string | null;
   rating: string | number | null;
   status: string | null;
   created_at: string | Date | null;
+  updated_at: string | Date | null;
+  approved_at: string | Date | null;
+  approved_by: string | null;
+  rejection_reason: string | null;
 };
 
 type DbPhotoRow = {
@@ -176,10 +181,15 @@ function mapReview(row: DbReviewRow): Review {
     userName: row.user_name,
     placeId: (row.place_id ?? "") as unknown as number,
     placeName: row.place_name,
+    title: row.title ?? null,
     content: row.content,
     rating: row.rating == null ? "0" : String(row.rating),
     status: row.status ?? "pending",
     createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at),
+    approvedAt: asDate(row.approved_at),
+    approvedBy: row.approved_by ?? null,
+    rejectionReason: row.rejection_reason ?? null,
   };
 }
 
@@ -224,9 +234,12 @@ export interface IStorage {
   updatePlaylistStatus(id: number, status: string): Promise<Playlist>;
   getTrips(): Promise<Trip[]>;
   createTrip(trip: InsertTrip): Promise<Trip>;
-  getReviews(): Promise<Review[]>;
+  getReviews(status?: string): Promise<Review[]>;
   createReview(review: InsertReview): Promise<Review>;
   updateReviewStatus(id: number, status: string): Promise<Review>;
+  approveReview(id: number, approvedBy?: string): Promise<Review>;
+  rejectReview(id: number, reason?: string): Promise<Review>;
+  deleteReview(id: number): Promise<void>;
   getPhotos(): Promise<Photo[]>;
   createPhoto(photo: InsertPhoto): Promise<Photo>;
   updatePhotoStatus(id: number, status: string): Promise<Photo>;
@@ -461,26 +474,38 @@ export class DatabaseStorage implements IStorage {
     return mapTrip(result.rows[0] as DbTripRow);
   }
 
-  async getReviews(): Promise<Review[]> {
-    const result = await pool.query(
-      `select id, user_id, user_name, place_id, place_name, content, rating, status, created_at
-       from public.reviews
-       order by created_at desc nulls last, id desc`,
-    );
+  private static readonly reviewCols = `
+    id, user_id, user_name, place_id, place_name, title, content, rating,
+    status, created_at, updated_at, approved_at, approved_by, rejection_reason
+  `;
+
+  async getReviews(status?: string): Promise<Review[]> {
+    const result = status
+      ? await pool.query(
+          `select ${DatabaseStorage.reviewCols} from public.reviews
+           where status = $1
+           order by created_at desc nulls last, id desc`,
+          [status],
+        )
+      : await pool.query(
+          `select ${DatabaseStorage.reviewCols} from public.reviews
+           order by created_at desc nulls last, id desc`,
+        );
     return result.rows.map((row) => mapReview(row as DbReviewRow));
   }
 
   async createReview(review: InsertReview): Promise<Review> {
     const result = await pool.query(
       `insert into public.reviews
-       (user_id, user_name, place_id, place_name, content, rating, status)
-       values ($1, $2, $3, $4, $5, $6, $7)
-       returning id, user_id, user_name, place_id, place_name, content, rating, status, created_at`,
+       (user_id, user_name, place_id, place_name, title, content, rating, status)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       returning ${DatabaseStorage.reviewCols}`,
       [
         review.userId ?? null,
         review.userName ?? null,
         review.placeId == null ? null : String(review.placeId),
         review.placeName ?? null,
+        (review as any).title ?? null,
         review.content ?? null,
         review.rating ?? "0",
         review.status ?? "pending",
@@ -492,12 +517,38 @@ export class DatabaseStorage implements IStorage {
   async updateReviewStatus(id: number, status: string): Promise<Review> {
     const result = await pool.query(
       `update public.reviews
-       set status = $2
+       set status = $2, updated_at = now()
        where id = $1
-       returning id, user_id, user_name, place_id, place_name, content, rating, status, created_at`,
+       returning ${DatabaseStorage.reviewCols}`,
       [id, status],
     );
     return mapReview(result.rows[0] as DbReviewRow);
+  }
+
+  async approveReview(id: number, approvedBy: string = "admin"): Promise<Review> {
+    const result = await pool.query(
+      `update public.reviews
+       set status = 'approved', approved_at = now(), approved_by = $2, updated_at = now()
+       where id = $1
+       returning ${DatabaseStorage.reviewCols}`,
+      [id, approvedBy],
+    );
+    return mapReview(result.rows[0] as DbReviewRow);
+  }
+
+  async rejectReview(id: number, reason?: string): Promise<Review> {
+    const result = await pool.query(
+      `update public.reviews
+       set status = 'rejected', rejection_reason = $2, updated_at = now()
+       where id = $1
+       returning ${DatabaseStorage.reviewCols}`,
+      [id, reason ?? null],
+    );
+    return mapReview(result.rows[0] as DbReviewRow);
+  }
+
+  async deleteReview(id: number): Promise<void> {
+    await pool.query(`delete from public.reviews where id = $1`, [id]);
   }
 
   async getPhotos(): Promise<Photo[]> {

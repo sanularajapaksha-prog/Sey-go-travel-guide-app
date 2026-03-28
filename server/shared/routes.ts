@@ -193,12 +193,42 @@ export const api = {
           200: z.array(z.custom<typeof reviews.$inferSelect>()),
         },
       },
+      // Generic status update — kept for backward-compat with mobile
       action: {
         method: 'PATCH' as const,
         path: '/api/moderation/reviews/:id',
         input: z.object({ status: z.enum(['approved', 'rejected']) }),
         responses: {
           200: z.custom<typeof reviews.$inferSelect>(),
+        },
+      },
+      // Dedicated approve — records approvedAt / approvedBy
+      approve: {
+        method: 'PATCH' as const,
+        path: '/api/moderation/reviews/:id/approve',
+        input: z.object({ approvedBy: z.string().optional() }),
+        responses: {
+          200: z.custom<typeof reviews.$inferSelect>(),
+          404: errorSchemas.notFound,
+        },
+      },
+      // Dedicated reject — records rejectionReason
+      reject: {
+        method: 'PATCH' as const,
+        path: '/api/moderation/reviews/:id/reject',
+        input: z.object({ reason: z.string().optional() }),
+        responses: {
+          200: z.custom<typeof reviews.$inferSelect>(),
+          404: errorSchemas.notFound,
+        },
+      },
+      // Hard delete
+      delete: {
+        method: 'DELETE' as const,
+        path: '/api/moderation/reviews/:id',
+        responses: {
+          204: z.void(),
+          404: errorSchemas.notFound,
         },
       },
     },
@@ -217,6 +247,19 @@ export const api = {
         input: z.object({ status: z.enum(['approved', 'rejected']) }),
         responses: {
           200: z.custom<typeof photos.$inferSelect>(),
+        },
+      },
+    },
+  },
+  // Public / mobile-facing — only returns approved reviews
+  community: {
+    reviews: {
+      list: {
+        method: 'GET' as const,
+        path: '/api/community/reviews',
+        input: z.object({ place_id: z.string().optional() }).optional(),
+        responses: {
+          200: z.array(z.custom<typeof reviews.$inferSelect>()),
         },
       },
     },

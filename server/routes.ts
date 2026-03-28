@@ -161,12 +161,16 @@ export async function registerRoutes(
   // Seed DB
   await seedDatabase();
 
-  const listPendingReviews = asyncHandler(async (_req, res) => {
-    const reviews = await storage.getReviews();
-    const pending = reviews.filter((review) => review.status === "pending");
-    res.json(pending);
+  // Admin — list reviews filtered by ?status= (all statuses when param omitted)
+  const listReviews = asyncHandler(async (req, res) => {
+    const status = typeof req.query.status === "string" && req.query.status
+      ? req.query.status
+      : undefined;
+    const reviews = await storage.getReviews(status);
+    res.json(reviews);
   });
 
+  // Generic status update — kept for backward-compat (mobile may POST status directly)
   const updateReviewStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
     if (!status) return res.status(400).json({ message: "status is required" });
@@ -178,6 +182,48 @@ export async function registerRoutes(
       type: status === "approved" ? "success" : "warning"
     });
     res.json(updated);
+  });
+
+  // Dedicated approve — records approvedAt / approvedBy audit fields
+  const approveReview = asyncHandler(async (req, res) => {
+    const { approvedBy } = req.body;
+    const updated = await storage.approveReview(Number(req.params.id), approvedBy);
+    if (!updated) return res.status(404).json({ message: "Review not found" });
+    await storage.createNotification({
+      title: "Review Approved",
+      message: `Review by ${updated.userName} for ${updated.placeName} was approved.`,
+      type: "success"
+    });
+    res.json(updated);
+  });
+
+  // Dedicated reject — records rejectionReason
+  const rejectReview = asyncHandler(async (req, res) => {
+    const { reason } = req.body;
+    const updated = await storage.rejectReview(Number(req.params.id), reason);
+    if (!updated) return res.status(404).json({ message: "Review not found" });
+    await storage.createNotification({
+      title: "Review Rejected",
+      message: `Review by ${updated.userName} for ${updated.placeName} was rejected.`,
+      type: "warning"
+    });
+    res.json(updated);
+  });
+
+  // Hard delete
+  const deleteReview = asyncHandler(async (req, res) => {
+    await storage.deleteReview(Number(req.params.id));
+    res.status(204).end();
+  });
+
+  // Public / mobile — only approved reviews, optionally filtered by place_id
+  const communityReviews = asyncHandler(async (req, res) => {
+    const all = await storage.getReviews("approved");
+    const placeId = req.query.place_id;
+    const result = placeId
+      ? all.filter((r) => String(r.placeId) === String(placeId))
+      : all;
+    res.json(result);
   });
 
   const listPendingPhotos = asyncHandler(async (_req, res) => {
@@ -310,11 +356,20 @@ export async function registerRoutes(
     res.status(204).end();
   }));
 
-  // Moderation
-  app.get(api.reviews.list.path, listPendingReviews);
+  // Reviews — admin (all statuses via ?status= filter)
+  // IMPORTANT: specific paths (/approve, /reject) must be registered before the
+  // generic /:id route so Express doesn't swallow them as param matches.
+  app.get(api.reviews.list.path, listReviews);
   app.patch(api.reviews.action.path, updateReviewStatus);
-  app.get(api.moderation.reviews.list.path, listPendingReviews);
+
+  app.get(api.moderation.reviews.list.path, listReviews);
+  app.patch(api.moderation.reviews.approve.path, approveReview);
+  app.patch(api.moderation.reviews.reject.path, rejectReview);
+  app.delete(api.moderation.reviews.delete.path, deleteReview);
   app.patch(api.moderation.reviews.action.path, updateReviewStatus);
+
+  // Reviews — public / mobile (approved only)
+  app.get(api.community.reviews.list.path, communityReviews);
 
   app.get(api.photos.list.path, listPendingPhotos);
   app.patch(api.photos.action.path, updatePhotoStatus);
