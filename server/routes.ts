@@ -174,7 +174,7 @@ export async function registerRoutes(
   const updateReviewStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
     if (!status) return res.status(400).json({ message: "status is required" });
-    const updated = await storage.updateReviewStatus(Number(req.params.id), status);
+    const updated = await storage.updateReviewStatus(req.params.id, status);
     if (!updated) return res.status(404).json({ message: "Review not found" });
     await storage.createNotification({
       title: "Review Moderated",
@@ -187,7 +187,7 @@ export async function registerRoutes(
   // Dedicated approve — records approvedAt / approvedBy audit fields
   const approveReview = asyncHandler(async (req, res) => {
     const { approvedBy } = req.body;
-    const updated = await storage.approveReview(Number(req.params.id), approvedBy);
+    const updated = await storage.approveReview(req.params.id, approvedBy);
     if (!updated) return res.status(404).json({ message: "Review not found" });
     await storage.createNotification({
       title: "Review Approved",
@@ -200,7 +200,7 @@ export async function registerRoutes(
   // Dedicated reject — records rejectionReason
   const rejectReview = asyncHandler(async (req, res) => {
     const { reason } = req.body;
-    const updated = await storage.rejectReview(Number(req.params.id), reason);
+    const updated = await storage.rejectReview(req.params.id, reason);
     if (!updated) return res.status(404).json({ message: "Review not found" });
     await storage.createNotification({
       title: "Review Rejected",
@@ -212,7 +212,7 @@ export async function registerRoutes(
 
   // Hard delete
   const deleteReview = asyncHandler(async (req, res) => {
-    await storage.deleteReview(Number(req.params.id));
+    await storage.deleteReview(req.params.id);
     res.status(204).end();
   });
 
