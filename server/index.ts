@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { adminAuthMiddleware } from "./authMiddleware";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,14 +15,19 @@ declare module "http" {
 }
 
 app.use((req, res, next) => {
-  const allowed = [
+  const productionOrigins = [
     "https://seygo.online",
     "https://www.seygo.online",
     "https://sey-go-travel-guide-app-production.up.railway.app",
     "https://sanularajapaksha-prog.github.io",
+  ];
+  const devOrigins = [
     "http://localhost:5000",
     "http://localhost:5173",
   ];
+  const allowed = process.env.NODE_ENV === "production"
+    ? productionOrigins
+    : [...productionOrigins, ...devOrigins];
   const origin = req.headers.origin;
   if (origin && allowed.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -42,6 +48,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Admin auth guard — protects all /api/* routes except public ones
+app.use(adminAuthMiddleware);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

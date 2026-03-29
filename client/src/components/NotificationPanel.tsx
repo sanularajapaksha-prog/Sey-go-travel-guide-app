@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, Info, CheckCircle, AlertCircle } from "lucide-react";
+import { getApiUrl, authHeaders } from "@/lib/api";
 import {
   Popover,
   PopoverContent,
@@ -24,12 +25,24 @@ export function NotificationPanel() {
 
   const { data: notifications = [] } = useQuery<NotificationType[]>({
     queryKey: ["/api/notifications"],
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const res = await fetch(getApiUrl("/api/notifications"), {
+        credentials: "include",
+        headers: await authHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      return res.json();
+    },
   });
 
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/notifications/read", { method: "PATCH" });
+      const res = await fetch(getApiUrl("/api/notifications/read"), {
+        method: "PATCH",
+        headers: await authHeaders(),
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to mark read");
       return res.json();
     },

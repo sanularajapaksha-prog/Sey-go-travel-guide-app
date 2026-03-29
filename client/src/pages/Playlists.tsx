@@ -1,10 +1,10 @@
 import { Layout } from "@/components/Layout";
-import { usePlaylists, useCreatePlaylist, useUpdatePlaylistStatus } from "@/hooks/use-playlists";
+import { usePlaylists, useCreatePlaylist, useUpdatePlaylistStatus, useDeletePlaylist } from "@/hooks/use-playlists";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Check, X, Plus, Music } from "lucide-react";
+import { Check, X, Plus, Music, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import {
@@ -20,12 +20,21 @@ import { insertPlaylistSchema, type InsertPlaylist } from "../../../server/share
 export default function Playlists() {
   const { data: playlists, isLoading } = usePlaylists();
   const updateStatus = useUpdatePlaylistStatus();
+  const deletePlaylist = useDeletePlaylist();
   const { toast } = useToast();
 
   const handleStatusChange = (id: number, status: 'approved' | 'rejected') => {
     updateStatus.mutate({ id, status }, {
       onSuccess: () => toast({ title: `Playlist ${status}` }),
       onError: () => toast({ title: "Action failed", variant: "destructive" }),
+    });
+  };
+
+  const handleDelete = (id: number, name: string) => {
+    if (!confirm(`Delete "${name}" permanently?`)) return;
+    deletePlaylist.mutate(id, {
+      onSuccess: () => toast({ title: "Playlist deleted" }),
+      onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
     });
   };
 
@@ -42,7 +51,7 @@ export default function Playlists() {
               <TableHead>Creator</TableHead>
               <TableHead>Places</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Moderation</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -75,8 +84,8 @@ export default function Playlists() {
                   <TableCell className="text-right space-x-2">
                     {playlist.status === 'pending' && (
                       <>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
                           onClick={() => handleStatusChange(playlist.id, 'approved')}
@@ -84,8 +93,8 @@ export default function Playlists() {
                         >
                           <Check className="h-4 w-4 mr-1" /> Approve
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                           onClick={() => handleStatusChange(playlist.id, 'rejected')}
@@ -95,6 +104,15 @@ export default function Playlists() {
                         </Button>
                       </>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(playlist.id, playlist.name)}
+                      disabled={deletePlaylist.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

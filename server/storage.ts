@@ -237,6 +237,7 @@ export interface IStorage {
   getPlaylists(): Promise<Playlist[]>;
   createPlaylist(playlist: InsertPlaylist): Promise<Playlist>;
   updatePlaylistStatus(id: number, status: string): Promise<Playlist>;
+  deletePlaylist(id: number): Promise<void>;
   getTrips(): Promise<Trip[]>;
   createTrip(trip: InsertTrip): Promise<Trip>;
   getReviews(status?: string): Promise<Review[]>;
@@ -245,7 +246,7 @@ export interface IStorage {
   approveReview(id: string | number, approvedBy?: string): Promise<Review>;
   rejectReview(id: string | number, reason?: string): Promise<Review>;
   deleteReview(id: string | number): Promise<void>;
-  getPhotos(): Promise<Photo[]>;
+  getPhotos(status?: string): Promise<Photo[]>;
   createPhoto(photo: InsertPhoto): Promise<Photo>;
   updatePhotoStatus(id: number, status: string): Promise<Photo>;
   getDashboardStats(): Promise<StatsResponse>;
@@ -321,11 +322,43 @@ export class DatabaseStorage implements IStorage {
        returning id, name, email, role, status, joined_at`,
       [id, status],
     );
-    return mapUser(result.rows[0] as DbUserRow);
+    const updated = mapUser(result.rows[0] as DbUserRow);
+
+    // Also update the Supabase Auth account so the session is actually banned/unbanned.
+    // Look up the auth UUID by email, then set ban_duration accordingly.
+    try {
+      const { data: authList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const authUser = authList?.users.find((u) => u.email === updated.email);
+      if (authUser) {
+        await supabase.auth.admin.updateUserById(authUser.id, {
+          ban_duration: status === "disabled" ? "876600h" : "none", // 100 years or lift ban
+        });
+      }
+    } catch {
+      // Non-fatal: DB record is updated; log and continue
+      console.warn(`[storage] Could not update Supabase Auth ban state for user ${id}`);
+    }
+
+    return updated;
   }
 
   async deleteUser(id: number): Promise<void> {
+    // Look up the user's email before deleting the DB row so we can find their auth UUID
+    const row = await this.getUser(id);
     await pool.query(`delete from public.users where id = $1`, [id]);
+
+    // Also delete the Supabase Auth account so they cannot log in at all
+    if (row?.email) {
+      try {
+        const { data: authList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const authUser = authList?.users.find((u) => u.email === row.email);
+        if (authUser) {
+          await supabase.auth.admin.deleteUser(authUser.id);
+        }
+      } catch {
+        console.warn(`[storage] Could not delete Supabase Auth account for user ${id}`);
+      }
+    }
   }
 
   async getPlaces(): Promise<Place[]> {
@@ -454,6 +487,10 @@ export class DatabaseStorage implements IStorage {
     return mapPlaylist(result.rows[0] as DbPlaylistRow);
   }
 
+  async deletePlaylist(id: number): Promise<void> {
+    await pool.query(`delete from public.playlists where id = $1`, [id]);
+  }
+
   async getTrips(): Promise<Trip[]> {
     const result = await pool.query(
       `select id, user_id, destination, start_date, end_date, status, created_at
@@ -561,12 +598,20 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  async getPhotos(): Promise<Photo[]> {
-    const result = await pool.query(
-      `select id, uploader_id, uploader_name, url, caption, related_type, related_id, status, created_at
-       from public.photos
-       order by created_at desc nulls last, id desc`,
-    );
+  async getPhotos(status?: string): Promise<Photo[]> {
+    const result = status
+      ? await pool.query(
+          `select id, uploader_id, uploader_name, url, caption, related_type, related_id, status, created_at
+           from public.photos
+           where status = $1
+           order by created_at desc nulls last, id desc`,
+          [status],
+        )
+      : await pool.query(
+          `select id, uploader_id, uploader_name, url, caption, related_type, related_id, status, created_at
+           from public.photos
+           order by created_at desc nulls last, id desc`,
+        );
     return result.rows.map((row) => mapPhoto(row as DbPhotoRow));
   }
 
@@ -601,23 +646,42 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardStats(): Promise<StatsResponse> {
-    const [allTrips, allPlaylists, allPlaces, allUsers, allReviews] =
-      await Promise.all([
-        this.getTrips().catch(() => [] as Trip[]),
-        this.getPlaylists().catch(() => [] as Playlist[]),
-        this.getPlaces().catch(() => [] as Place[]),
-        this.getUsers().catch(() => [] as User[]),
-        this.getReviews().catch(() => [] as Review[]),
-      ]);
+    // Use SQL aggregates instead of fetching all rows to JS and counting there
+    const [tripsRes, playlistsRes, reviewsRes, usersRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS count FROM public.trips`).catch(() => ({ rows: [{ count: 0 }] })),
+      pool.query(`SELECT COUNT(*)::int AS count FROM public.playlists`).catch(() => ({ rows: [{ count: 0 }] })),
+      pool.query(`
+        SELECT
+          COUNT(*)::int                                          AS total,
+          COUNT(*) FILTER (WHERE status = 'pending')::int       AS pending
+        FROM public.reviews
+      `).catch(() => ({ rows: [{ total: 0, pending: 0 }] })),
+      pool.query(`
+        SELECT
+          COUNT(*)::int                                          AS total,
+          COUNT(*) FILTER (WHERE status = 'active')::int        AS active
+        FROM public.users
+      `).catch(() => ({ rows: [{ total: 0, active: 0 }] })),
+    ]);
+
+    // Places still come from Supabase — use a COUNT query via the JS client
+    let totalPlaces = 0;
+    try {
+      const { count } = await supabase
+        .from(placesTableName)
+        .select("*", { count: "exact", head: true });
+      totalPlaces = count ?? 0;
+    } catch {
+      totalPlaces = 0;
+    }
 
     return {
-      totalTrips: allTrips.length,
-      totalPlaylists: allPlaylists.length,
-      totalPlaces: allPlaces.length,
-      totalUsers: allUsers.length,
-      activeUsers: allUsers.filter((user) => user.status === "active").length,
-      pendingReviews: allReviews.filter((review) => review.status === "pending")
-        .length,
+      totalTrips:     tripsRes.rows[0]?.count     ?? 0,
+      totalPlaylists: playlistsRes.rows[0]?.count ?? 0,
+      totalPlaces,
+      totalUsers:     usersRes.rows[0]?.total     ?? 0,
+      activeUsers:    usersRes.rows[0]?.active    ?? 0,
+      pendingReviews: reviewsRes.rows[0]?.pending ?? 0,
     };
   }
 

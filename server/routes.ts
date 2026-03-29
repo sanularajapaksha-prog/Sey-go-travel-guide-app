@@ -12,6 +12,10 @@ import { z } from "zod";
 const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any>) =>
   (req: any, res: any, next: any) => fn(req, res, next).catch(next);
 
+const VALID_REVIEW_STATUSES = ["approved", "rejected", "pending"];
+const VALID_USER_STATUSES   = ["active", "disabled"];
+const VALID_PLAYLIST_STATUSES = ["approved", "rejected", "pending"];
+
 async function seedDatabase() {
   try {
     const users = await storage.getUsers();
@@ -173,7 +177,9 @@ export async function registerRoutes(
   // Generic status update — kept for backward-compat (mobile may POST status directly)
   const updateReviewStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
-    if (!status) return res.status(400).json({ message: "status is required" });
+    if (!status || !VALID_REVIEW_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "status must be approved, rejected, or pending" });
+    }
     const updated = await storage.updateReviewStatus(req.params.id, status);
     if (!updated) return res.status(404).json({ message: "Review not found" });
     await storage.createNotification({
@@ -186,7 +192,8 @@ export async function registerRoutes(
 
   // Dedicated approve — records approvedAt / approvedBy audit fields
   const approveReview = asyncHandler(async (req, res) => {
-    const { approvedBy } = req.body;
+    // Use the verified admin email injected by auth middleware; fall back to body value
+    const approvedBy = (req as any).adminEmail ?? req.body.approvedBy ?? "admin";
     const updated = await storage.approveReview(req.params.id, approvedBy);
     if (!updated) return res.status(404).json({ message: "Review not found" });
     await storage.createNotification({
@@ -226,15 +233,20 @@ export async function registerRoutes(
     res.json(result);
   });
 
-  const listPendingPhotos = asyncHandler(async (_req, res) => {
-    const photos = await storage.getPhotos();
-    const pending = photos.filter((photo) => photo.status === "pending");
-    res.json(pending);
+  const listPhotos = asyncHandler(async (req, res) => {
+    const status = typeof req.query.status === "string" && req.query.status
+      ? req.query.status
+      : "pending"; // default to pending for backward-compat
+    const photos = await storage.getPhotos(status);
+    res.json(photos);
   });
 
+  const VALID_PHOTO_STATUSES = ["approved", "rejected", "pending"];
   const updatePhotoStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
-    if (!status) return res.status(400).json({ message: "status is required" });
+    if (!status || !VALID_PHOTO_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "status must be approved, rejected, or pending" });
+    }
     const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Photo not found" });
     await storage.createNotification({
@@ -321,9 +333,16 @@ export async function registerRoutes(
     });
     res.status(201).json(playlist);
   }));
+  app.delete(api.playlists.delete.path, asyncHandler(async (req, res) => {
+    await storage.deletePlaylist(Number(req.params.id));
+    res.status(204).end();
+  }));
+
   app.patch(api.playlists.updateStatus.path, asyncHandler(async (req, res) => {
     const { status } = req.body;
-    if (!status) return res.status(400).json({ message: "status is required" });
+    if (!status || !VALID_PLAYLIST_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "status must be approved, rejected, or pending" });
+    }
     const updated = await storage.updatePlaylistStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Playlist not found" });
     await storage.createNotification({
@@ -341,7 +360,9 @@ export async function registerRoutes(
   }));
   app.patch(api.users.updateStatus.path, asyncHandler(async (req, res) => {
     const { status } = req.body;
-    if (!status) return res.status(400).json({ message: "status is required" });
+    if (!status || !VALID_USER_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "status must be active or disabled" });
+    }
     const updated = await storage.updateUserStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "User not found" });
     await storage.createNotification({
@@ -371,9 +392,9 @@ export async function registerRoutes(
   // Reviews — public / mobile (approved only)
   app.get(api.community.reviews.list.path, communityReviews);
 
-  app.get(api.photos.list.path, listPendingPhotos);
+  app.get(api.photos.list.path, listPhotos);
   app.patch(api.photos.action.path, updatePhotoStatus);
-  app.get(api.moderation.photos.list.path, listPendingPhotos);
+  app.get(api.moderation.photos.list.path, listPhotos);
   app.patch(api.moderation.photos.action.path, updatePhotoStatus);
 
   // Notifications

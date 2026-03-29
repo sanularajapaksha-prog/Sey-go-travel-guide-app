@@ -1,7 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertPlaylist } from "../../../server/shared/schema";
-import { getApiUrl } from "@/lib/api";
+import { getApiUrl, authHeaders } from "@/lib/api";
+
+export function useDeletePlaylist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = getApiUrl(buildUrl(api.playlists.delete.path, { id }));
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: await authHeaders(),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete playlist");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.playlists.list.path] });
+    },
+  });
+}
 
 export function usePlaylists(status?: string) {
   return useQuery({
@@ -10,7 +28,7 @@ export function usePlaylists(status?: string) {
       const url = new URL(getApiUrl(api.playlists.list.path));
       if (status) url.searchParams.set("status", status);
       
-      const res = await fetch(url.toString(), { credentials: "include" });
+      const res = await fetch(url.toString(), { credentials: "include", headers: await authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch playlists");
       return api.playlists.list.responses[200].parse(await res.json());
     },
@@ -23,7 +41,7 @@ export function useCreatePlaylist() {
     mutationFn: async (data: InsertPlaylist) => {
       const res = await fetch(getApiUrl(api.playlists.create.path), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -43,7 +61,7 @@ export function useUpdatePlaylistStatus() {
       const url = getApiUrl(buildUrl(api.playlists.updateStatus.path, { id }));
       const res = await fetch(url, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ status }),
         credentials: "include",
       });

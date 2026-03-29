@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertPlace } from "../../../server/shared/schema";
-import { getApiUrl } from "@/lib/api";
+import { getApiUrl, authHeaders } from "@/lib/api";
 
 export function usePlaces(search?: string) {
   return useQuery({
@@ -10,7 +10,7 @@ export function usePlaces(search?: string) {
       const url = new URL(getApiUrl(api.places.list.path));
       if (search) url.searchParams.set("search", search);
       
-      const res = await fetch(url.toString(), { credentials: "include" });
+      const res = await fetch(url.toString(), { credentials: "include", headers: await authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch places");
       return api.places.list.responses[200].parse(await res.json());
     },
@@ -23,7 +23,7 @@ export function useCreatePlace() {
     mutationFn: async (data: InsertPlace) => {
       const res = await fetch(getApiUrl(api.places.create.path), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -46,7 +46,7 @@ export function useUpdatePlace() {
       const url = getApiUrl(buildUrl(api.places.update.path, { id }));
       const res = await fetch(url, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -64,7 +64,7 @@ export function useDeletePlace() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = getApiUrl(buildUrl(api.places.delete.path, { id }));
-      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      const res = await fetch(url, { method: "DELETE", credentials: "include", headers: await authHeaders() });
       if (!res.ok) throw new Error("Failed to delete place");
     },
     onSuccess: () => {
