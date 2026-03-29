@@ -558,44 +558,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   // All review update methods accept string (UUID) or number IDs.
+  // Use the Supabase service-role client so RLS is bypassed for admin mutations.
   async updateReviewStatus(id: string | number, status: string): Promise<Review> {
-    const result = await pool.query(
-      `update public.reviews
-       set status = $2, updated_at = now()
-       where id = $1::text::uuid
-       returning ${DatabaseStorage.reviewCols}`,
-      [String(id), status],
-    );
-    return mapReview(result.rows[0] as DbReviewRow);
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", String(id))
+      .select(DatabaseStorage.reviewCols)
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error("Review not found");
+    return mapReview(data as unknown as DbReviewRow);
   }
 
   async approveReview(id: string | number, approvedBy: string = "admin"): Promise<Review> {
-    const result = await pool.query(
-      `update public.reviews
-       set status = 'approved', approved_at = now(), approved_by = $2, updated_at = now()
-       where id = $1::text::uuid
-       returning ${DatabaseStorage.reviewCols}`,
-      [String(id), approvedBy],
-    );
-    return mapReview(result.rows[0] as DbReviewRow);
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        status: "approved",
+        approved_at: new Date().toISOString(),
+        approved_by: approvedBy,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", String(id))
+      .select(DatabaseStorage.reviewCols)
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error("Review not found");
+    return mapReview(data as unknown as DbReviewRow);
   }
 
   async rejectReview(id: string | number, reason?: string): Promise<Review> {
-    const result = await pool.query(
-      `update public.reviews
-       set status = 'rejected', rejection_reason = $2, updated_at = now()
-       where id = $1::text::uuid
-       returning ${DatabaseStorage.reviewCols}`,
-      [String(id), reason ?? null],
-    );
-    return mapReview(result.rows[0] as DbReviewRow);
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        status: "rejected",
+        rejection_reason: reason ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", String(id))
+      .select(DatabaseStorage.reviewCols)
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error("Review not found");
+    return mapReview(data as unknown as DbReviewRow);
   }
 
   async deleteReview(id: string | number): Promise<void> {
-    await pool.query(
-      `delete from public.reviews where id = $1::text::uuid`,
-      [String(id)],
-    );
+    const { error } = await supabase
+      .from("reviews")
+      .delete()
+      .eq("id", String(id));
+    if (error) throw error;
   }
 
   async getPhotos(status?: string): Promise<Photo[]> {
