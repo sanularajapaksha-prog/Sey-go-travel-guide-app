@@ -384,7 +384,7 @@ export class DatabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from(placesTableName)
       .select("*")
-      .or(`id.eq.${id},place_id.eq.${id}`)
+      .eq("id", String(id))
       .limit(1)
       .maybeSingle();
     if (error) throw error;
@@ -432,7 +432,7 @@ export class DatabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from(placesTableName)
       .update(patch)
-      .or(`id.eq.${id},place_id.eq.${id}`)
+      .eq("id", String(id))
       .select("*")
       .single();
     if (error) throw error;
@@ -443,7 +443,7 @@ export class DatabaseStorage implements IStorage {
     const { error } = await supabase
       .from(placesTableName)
       .delete()
-      .or(`id.eq.${id},place_id.eq.${id}`);
+      .eq("id", String(id));
     if (error) throw error;
   }
 
