@@ -558,21 +558,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   // All review update methods accept string (UUID) or number IDs.
-  // Use the Supabase service-role client so RLS is bypassed for admin mutations.
+  // Write via Supabase service-role client (bypasses RLS), then re-fetch via pool.
+  private async fetchReviewById(id: string | number): Promise<Review> {
+    const result = await pool.query(
+      `select ${DatabaseStorage.reviewCols} from public.reviews where id = $1::text::uuid`,
+      [String(id)],
+    );
+    if (!result.rows[0]) throw new Error("Review not found");
+    return mapReview(result.rows[0] as DbReviewRow);
+  }
+
   async updateReviewStatus(id: string | number, status: string): Promise<Review> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("reviews")
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", String(id))
-      .select(DatabaseStorage.reviewCols)
-      .single();
+      .eq("id", String(id));
     if (error) throw error;
-    if (!data) throw new Error("Review not found");
-    return mapReview(data as unknown as DbReviewRow);
+    return this.fetchReviewById(id);
   }
 
   async approveReview(id: string | number, approvedBy: string = "admin"): Promise<Review> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("reviews")
       .update({
         status: "approved",
@@ -580,28 +586,22 @@ export class DatabaseStorage implements IStorage {
         approved_by: approvedBy,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", String(id))
-      .select(DatabaseStorage.reviewCols)
-      .single();
+      .eq("id", String(id));
     if (error) throw error;
-    if (!data) throw new Error("Review not found");
-    return mapReview(data as unknown as DbReviewRow);
+    return this.fetchReviewById(id);
   }
 
   async rejectReview(id: string | number, reason?: string): Promise<Review> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("reviews")
       .update({
         status: "rejected",
         rejection_reason: reason ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", String(id))
-      .select(DatabaseStorage.reviewCols)
-      .single();
+      .eq("id", String(id));
     if (error) throw error;
-    if (!data) throw new Error("Review not found");
-    return mapReview(data as unknown as DbReviewRow);
+    return this.fetchReviewById(id);
   }
 
   async deleteReview(id: string | number): Promise<void> {
