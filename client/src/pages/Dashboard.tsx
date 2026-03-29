@@ -1,6 +1,7 @@
+import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useDashboardStats, useDashboardActivity } from "@/hooks/use-dashboard";
-import { 
+import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ function StatCard({ title, value, icon: Icon, colorClass }: { title: string, val
 }
 
 export default function Dashboard() {
+  const [, navigate] = useLocation();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: activity, isLoading: activityLoading } = useDashboardActivity();
 
@@ -153,7 +155,10 @@ export default function Dashboard() {
             </div>
             <h3 className="mt-6 text-4xl font-bold text-foreground">{stats?.pendingReviews || 0}</h3>
             <p className="text-muted-foreground mt-2 text-center">Items require your attention</p>
-            <button className="mt-6 px-6 py-2 bg-yellow-500 text-white rounded-full font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/25">
+            <button
+              className="mt-6 px-6 py-2 bg-yellow-500 text-white rounded-full font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/25"
+              onClick={() => navigate("/moderation")}
+            >
               Review Now
             </button>
           </CardContent>
