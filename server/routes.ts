@@ -182,11 +182,11 @@ export async function registerRoutes(
     }
     const updated = await storage.updateReviewStatus(req.params.id, status);
     if (!updated) return res.status(404).json({ message: "Review not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Review Moderated",
       message: `Review by ${updated.userName} for ${updated.placeName} was ${status}.`,
       type: status === "approved" ? "success" : "warning"
-    });
+    }).catch(() => {});
     res.json(updated);
   });
 
@@ -196,11 +196,11 @@ export async function registerRoutes(
     const approvedBy = (req as any).adminEmail ?? req.body.approvedBy ?? "admin";
     const updated = await storage.approveReview(req.params.id, approvedBy);
     if (!updated) return res.status(404).json({ message: "Review not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Review Approved",
       message: `Review by ${updated.userName} for ${updated.placeName} was approved.`,
       type: "success"
-    });
+    }).catch(() => {});
     res.json(updated);
   });
 
@@ -209,11 +209,11 @@ export async function registerRoutes(
     const { reason } = req.body;
     const updated = await storage.rejectReview(req.params.id, reason);
     if (!updated) return res.status(404).json({ message: "Review not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Review Rejected",
       message: `Review by ${updated.userName} for ${updated.placeName} was rejected.`,
       type: "warning"
-    });
+    }).catch(() => {});
     res.json(updated);
   });
 
@@ -249,11 +249,11 @@ export async function registerRoutes(
     }
     const updated = await storage.updatePhotoStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Photo not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Photo Moderated",
       message: `A photo submitted by ${updated.uploaderName} was ${status}.`,
       type: status === "approved" ? "success" : "warning"
-    });
+    }).catch(() => {});
     res.json(updated);
   });
 
@@ -290,11 +290,11 @@ export async function registerRoutes(
     try {
       const input = api.places.create.input.parse(body);
       const place = await storage.createPlace(input);
-      await storage.createNotification({
+      storage.createNotification({
         title: "New Place Added",
         message: `${place.name} has been added to places.`,
         type: "success"
-      });
+      }).catch(() => {});
       res.status(201).json(place);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -306,11 +306,11 @@ export async function registerRoutes(
   app.put(api.places.update.path, asyncHandler(async (req, res) => {
     const updated = await storage.updatePlace(req.params.id, req.body);
     if (!updated) return res.status(404).json({ message: "Place not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Place Updated",
       message: `${updated.name} has been updated.`,
       type: "info"
-    });
+    }).catch(() => {});
     res.json(updated);
   }));
   app.delete(api.places.delete.path, asyncHandler(async (req, res) => {
@@ -326,11 +326,11 @@ export async function registerRoutes(
   app.post(api.playlists.create.path, asyncHandler(async (req, res) => {
     const input = api.playlists.create.input.parse(req.body);
     const playlist = await storage.createPlaylist(input);
-    await storage.createNotification({
+    storage.createNotification({
       title: "New Playlist Created",
       message: `${playlist.name} has been created.`,
       type: "success"
-    });
+    }).catch(() => {});
     res.status(201).json(playlist);
   }));
   app.delete(api.playlists.delete.path, asyncHandler(async (req, res) => {
@@ -345,11 +345,11 @@ export async function registerRoutes(
     }
     const updated = await storage.updatePlaylistStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "Playlist not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "Playlist Status Updated",
       message: `Playlist ${updated.name} is now ${status}.`,
       type: "info"
-    });
+    }).catch(() => {});
     res.json(updated);
   }));
 
@@ -365,11 +365,11 @@ export async function registerRoutes(
     }
     const updated = await storage.updateUserStatus(Number(req.params.id), status);
     if (!updated) return res.status(404).json({ message: "User not found" });
-    await storage.createNotification({
+    storage.createNotification({
       title: "User Status Updated",
       message: `User ${updated.name}'s status was updated to ${status}.`,
       type: "warning"
-    });
+    }).catch(() => {});
     res.json(updated);
   }));
   app.delete(api.users.delete.path, asyncHandler(async (req, res) => {
